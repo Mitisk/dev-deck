@@ -1,12 +1,17 @@
 <script lang="ts">
   import type { Project } from "$lib/types";
   import { activeTab, type Tab } from "$lib/stores/ui";
-  import { pushToast } from "$lib/stores/toasts";
   import { statusLabel } from "$lib/format";
+  import * as actions from "$lib/api/actions";
   import Icon from "./Icon.svelte";
   import SettingsTab from "./SettingsTab.svelte";
 
   let { project }: { project: Project } = $props();
+
+  function run(action: () => Promise<void>) {
+    // Ошибки показывает api/client.ts тостом; здесь просто запускаем.
+    void action();
+  }
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "overview", label: "Обзор" },
@@ -34,8 +39,20 @@
       </div>
     </div>
     <div class="head-actions">
-      <button class="act" onclick={() => pushToast("Открываю папку", project.path ?? "путь не задан", "info")}>
-        <Icon name="folder-open" class="ic-sm" /> Папка
+      <button class="act sq" title="Открыть папку"
+              disabled={!project.path}
+              onclick={() => project.path && run(() => actions.openPath(project.path!))}>
+        <Icon name="folder-open" class="ic" />
+      </button>
+      <button class="act sq" title="Открыть в редакторе"
+              disabled={!project.path}
+              onclick={() => project.path && run(() => actions.openInEditor(project.path!))}>
+        <Icon name="code-xml" class="ic" />
+      </button>
+      <button class="act sq" title="Открыть терминал здесь"
+              disabled={!project.path}
+              onclick={() => project.path && run(() => actions.openTerminal(project.path!))}>
+        <Icon name="square-terminal" class="ic" />
       </button>
     </div>
   </div>
