@@ -55,6 +55,11 @@ pub fn run() {
             commands::checklists::checklist_items_update,
             commands::checklists::checklist_items_toggle,
             commands::checklists::checklist_items_delete,
+            commands::creds::creds_list,
+            commands::creds::creds_get_secret,
+            commands::creds::creds_create,
+            commands::creds::creds_update,
+            commands::creds::creds_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

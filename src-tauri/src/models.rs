@@ -101,3 +101,32 @@ pub struct Checklist {
     pub sort_order: i64,
     pub items: Vec<ChecklistItem>,
 }
+
+/// Метаданные креда (БЕЗ секрета).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Credential {
+    pub id: i64,
+    pub project_id: i64,
+    pub label: String,
+    #[serde(rename = "type")]
+    pub kind: String, // login | api_key | token | ssh | conn_string | note
+    pub username: Option<String>,
+    pub url: Option<String>,
+    pub notes: Option<String>,
+    pub sort_order: i64,
+    pub has_secret: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredInput {
+    pub label: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub username: Option<String>,
+    pub url: Option<String>,
+    pub notes: Option<String>,
+    /// None = не менять секрет (при update); Some("") = очистить; Some(x) = задать.
+    pub secret: Option<String>,
+}
