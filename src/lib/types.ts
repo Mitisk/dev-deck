@@ -62,3 +62,16 @@ export type Checklist = {
   sortOrder: number;
   items: ChecklistItem[];
 };
+
+export type CredType = "login" | "api_key" | "token" | "ssh" | "conn_string" | "note";
+export type Credential = {
+  id: number;
+  projectId: number;
+  label: string;
+  type: CredType;
+  username: string | null;
+  url: string | null;
+  notes: string | null;
+  sortOrder: number;
+  hasSecret: boolean;
+};
