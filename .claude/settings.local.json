@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "PowerShell(New-Item -ItemType Directory -Force d:\\\\DevDeck\\\\_prototype)",
+      "PowerShell(Move-Item -Force d:\\\\DevDeck\\\\index.html d:\\\\DevDeck\\\\_prototype\\\\index.html)",
+      "PowerShell(\"---\")",
+      "PowerShell(npm create tauri-app@latest devdeck-scaffold -- --template svelte-ts --manager npm --yes)",
+      "PowerShell(\"=== package.json ===\")"
+    ]
+  }
+}

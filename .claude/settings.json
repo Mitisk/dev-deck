@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(\"=== app.html ===\")",
+      "PowerShell(\"=== +layout.ts ===\")",
+      "PowerShell(\"=== vite.config.js ===\")",
+      "PowerShell($b=\"d:\\\\DevDeck\\\\devdeck-scaffold\\\\src-tauri\"; \"=== Cargo.toml ===\"; Get-Content \"$b\\\\Cargo.toml\" -Raw; \"=== src/lib.rs ===\"; Get-Content \"$b\\\\src\\\\lib.rs\" -Raw; \"=== src/main.rs ===\"; Get-Content \"$b\\\\src\\\\main.rs\" -Raw)",
+      "PowerShell($b=\"d:\\\\DevDeck\\\\devdeck-scaffold\\\\src-tauri\"; \"=== tauri.conf.json ===\"; Get-Content \"$b\\\\tauri.conf.json\" -Raw; \"=== capabilities ===\"; Get-ChildItem -Recurse \"$b\\\\capabilities\" | Select Name; Get-Content \"$b\\\\capabilities\\\\default.json\" -Raw)",
+      "PowerShell(\"---SCAFFOLD---\")",
+      "PowerShell(Set-Location d:\\\\DevDeck; Get-ChildItem -Force devdeck-scaffold | Where-Object { $_.Name -ne '.git' } | Move-Item -Destination . -Force; Remove-Item -Recurse -Force devdeck-scaffold; \"---ROOT AFTER MERGE---\"; Get-ChildItem -Force d:\\\\DevDeck | Select-Object Name)",
+      "PowerShell(Set-Location d:\\\\DevDeck; \\(Get-Content node_modules/@tauri-apps/api/package.json | ConvertFrom-Json\\).version; \"---build dir---\"; Test-Path d:\\\\DevDeck\\\\build\\\\index.html)",
+      "PowerShell(git -C d:\\\\DevDeck status 2>&1)",
+      "PowerShell(git -C d:\\\\DevDeck init)",
+      "PowerShell(git -C d:\\\\DevDeck checkout -b phase0-skeleton)",
+      "PowerShell(git -C d:\\\\DevDeck add -A)",
+      "PowerShell(git -C d:\\\\DevDeck status)"
+    ]
+  }
+}
