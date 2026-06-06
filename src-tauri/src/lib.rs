@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod error;
+mod models;
 mod state;
 
 use state::AppState;
@@ -21,7 +22,17 @@ pub fn run() {
             app.manage(AppState { db: Mutex::new(conn) });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![commands::health::db_health])
+        .invoke_handler(tauri::generate_handler![
+            commands::health::db_health,
+            commands::projects::projects_list,
+            commands::projects::projects_get,
+            commands::projects::projects_create,
+            commands::projects::projects_update,
+            commands::projects::projects_delete,
+            commands::projects::projects_archive,
+            commands::projects::project_set_pinned,
+            commands::projects::project_set_sort,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
