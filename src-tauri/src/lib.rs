@@ -41,6 +41,11 @@ pub fn run() {
             commands::git::git_pull,
             commands::git::git_push,
             commands::git::git_commit_all,
+            commands::tasks::tasks_list,
+            commands::tasks::tasks_create,
+            commands::tasks::tasks_update,
+            commands::tasks::tasks_move,
+            commands::tasks::tasks_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

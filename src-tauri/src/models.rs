@@ -56,3 +56,28 @@ pub struct GitOpResult {
     pub ok: bool,
     pub output: String,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Task {
+    pub id: i64,
+    pub project_id: i64,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String, // todo | doing | done
+    pub priority: i64,  // 0 | 1 | 2
+    pub due_date: Option<String>,
+    pub sort_order: i64,
+    pub created_at: String,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskInput {
+    pub title: String,
+    pub description: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<i64>,
+    pub due_date: Option<String>,
+}
