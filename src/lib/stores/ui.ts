@@ -4,3 +4,6 @@ export type Tab = "overview" | "tasks" | "checklists" | "creds" | "notes" | "set
 
 // Активная вкладка карточки проекта.
 export const activeTab = writable<Tab>("overview");
+
+// Открыта ли модалка создания проекта.
+export const showNewProject = writable(false);
