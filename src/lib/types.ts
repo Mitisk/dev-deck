@@ -33,3 +33,17 @@ export type GitStatus = {
 };
 
 export type GitOpResult = { ok: boolean; output: string };
+
+export type TaskStatus = "todo" | "doing" | "done";
+export type Task = {
+  id: number;
+  projectId: number;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: number; // 0 | 1 | 2
+  dueDate: string | null;
+  sortOrder: number;
+  createdAt: string;
+  completedAt: string | null;
+};

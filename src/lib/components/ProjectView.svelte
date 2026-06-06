@@ -5,6 +5,7 @@
   import * as actions from "$lib/api/actions";
   import Icon from "./Icon.svelte";
   import SettingsTab from "./SettingsTab.svelte";
+  import TasksTab from "./TasksTab.svelte";
   import GitBar from "./GitBar.svelte";
 
   let { project }: { project: Project } = $props();
@@ -69,6 +70,8 @@
   <div class="tab-body">
     {#if $activeTab === "settings"}
       <SettingsTab {project} />
+    {:else if $activeTab === "tasks"}
+      <TasksTab {project} />
     {:else}
       {#if project.description}<p class="desc">{project.description}</p>{/if}
       <p class="desc" style="color:var(--muted);margin-top:14px">
