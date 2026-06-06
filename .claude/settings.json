@@ -15,7 +15,10 @@
       "PowerShell(git -C d:\\\\DevDeck add -A)",
       "PowerShell(git -C d:\\\\DevDeck status)",
       "PowerShell(npm run check; Write-Output \"=== EXIT $LASTEXITCODE ===\")",
-      "PowerShell(npm run build; Write-Output \"=== EXIT $LASTEXITCODE ===\")"
+      "PowerShell(npm run build; Write-Output \"=== EXIT $LASTEXITCODE ===\")",
+      "PowerShell(npm run check)",
+      "PowerShell(if \\($?\\) { \"git repo\" } else { \"not a repo\" })",
+      "PowerShell(git add -A)"
     ]
   }
 }
