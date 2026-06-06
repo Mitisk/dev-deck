@@ -47,3 +47,18 @@ export type Task = {
   createdAt: string;
   completedAt: string | null;
 };
+
+export type ChecklistItem = {
+  id: number;
+  checklistId: number;
+  text: string;
+  isDone: boolean;
+  sortOrder: number;
+};
+export type Checklist = {
+  id: number;
+  projectId: number;
+  title: string;
+  sortOrder: number;
+  items: ChecklistItem[];
+};
