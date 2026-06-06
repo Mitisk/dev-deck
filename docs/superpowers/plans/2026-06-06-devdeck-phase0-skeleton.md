@@ -8,6 +8,12 @@
 
 **Стек:** Tauri 2 · Rust (rusqlite 0.32 «bundled») · **SvelteKit SPA** (Svelte 5 + TypeScript, `adapter-static`, `ssr = false`, `prerender = true`) · Vite 6 · Vitest.
 
+> **Svelte 5 runes (важно):** компоненты пишем на рунах — `let { x } = $props()`,
+> `let v = $state(...)`, `const d = $derived(...)`, `$effect(() => {...})`, обработчики
+> `onclick={...}` (НЕ legacy `export let` / `$:` / `on:click` / `afterUpdate`). Перерисовку
+> lucide-иконок после изменения DOM делаем через `$effect`, читая внутри реактивную
+> зависимость (список/состояние), чтобы эффект перезапускался.
+>
 > **SvelteKit-конвенции (важно для всех задач):** UI живёт в `src/routes/` (главный экран — `src/routes/+page.svelte`, общий layout — `src/routes/+layout.svelte`, конфиг рендеринга — `src/routes/+layout.ts`). HTML-оболочка — `src/app.html` (НЕ корневой `index.html`). Общие модули — в `src/lib/`, импортируются через алиас `$lib/...`. Сборка фронта идёт в `build/` (не `dist/`). Браузерные API (`document`, `localStorage`) в модулях гардить через `import { browser } from "$app/environment"`. Файла `src/main.ts`/`src/App.svelte` НЕТ — их роль играют `+layout.svelte`/`+page.svelte`.
 
 **Источники:** `TZ_DevDeck.md` (раздел 4 — схема БД, раздел 10 — команды), `index.html` (прототип: CSS в `<style>` строки 14–737, мок-данные `PROJECTS` со строки 839, render-функции).
