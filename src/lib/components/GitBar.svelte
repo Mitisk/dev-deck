@@ -1,38 +1,64 @@
 <script lang="ts">
-  import type { GitStatus } from "$lib/types";
+  import type { GitStatus, GitOpResult } from "$lib/types";
   import * as git from "$lib/api/git";
+  import { pushToast } from "$lib/stores/toasts";
   import Icon from "./Icon.svelte";
 
   let { repoPath }: { repoPath: string | null } = $props();
 
   let st = $state<GitStatus | null>(null);
   let loaded = $state(false);
+  let busy = $state<string | null>(null); // имя текущей операции
+  let message = $state("");
 
-  // Перезагружать статус при смене пути.
-  $effect(() => {
-    const p = repoPath;
-    loaded = false;
-    st = null;
-    if (!p) {
+  let reqId = 0;
+  async function load() {
+    if (!repoPath) {
+      st = null;
       loaded = true;
       return;
     }
-    let cancelled = false;
-    git
-      .status(p)
-      .then((s) => {
-        if (!cancelled) {
-          st = s;
-          loaded = true;
-        }
-      })
-      .catch(() => {
-        if (!cancelled) loaded = true;
-      });
-    return () => {
-      cancelled = true;
-    };
+    const my = ++reqId;
+    try {
+      const s = await git.status(repoPath);
+      if (my === reqId) st = s;
+    } catch {
+      // тост ошибки показывает api/client.ts
+    } finally {
+      if (my === reqId) loaded = true;
+    }
+  }
+
+  // Перезагрузка при смене пути.
+  $effect(() => {
+    repoPath;
+    loaded = false;
+    st = null;
+    load();
   });
+
+  async function op(name: string, fn: () => Promise<GitOpResult>, okMsg: string) {
+    if (!repoPath || busy) return;
+    busy = name;
+    try {
+      const r = await fn();
+      const tail = r.output.split("\n").filter(Boolean).slice(-2).join(" · ");
+      pushToast(r.ok ? okMsg : "Git: ошибка", tail || (r.ok ? "" : "см. вывод git"), r.ok ? "ok" : "error");
+      if (r.ok) await load();
+    } catch {
+      // spawn-ошибка («git не найден») — тост из api/client.ts
+    } finally {
+      busy = null;
+    }
+  }
+
+  function commit() {
+    const m = message.trim();
+    if (!m || !repoPath) return;
+    op("commit", () => git.commitAll(repoPath!, m), "Коммит создан").then(() => {
+      message = "";
+    });
+  }
 
   function fmtDate(ts: number | null): string {
     if (!ts) return "";
@@ -65,6 +91,22 @@
         {#if st.lastTimestamp}<span style="color:var(--muted-2)">· {fmtDate(st.lastTimestamp)}</span>{/if}
       </span>
     {/if}
+
+    <div class="git-actions">
+      <div class="commit-field">
+        <input placeholder="Сообщение коммита" bind:value={message} onkeydown={(e) => { if (e.key === 'Enter') commit(); }} />
+        <button disabled={!message.trim() || !!busy} onclick={commit}>{busy === "commit" ? "…" : "Commit all"}</button>
+      </div>
+      <button class="gbtn" disabled={!!busy} onclick={() => op("fetch", () => git.fetch(repoPath!), "Fetch выполнен")}>
+        <Icon name="refresh-cw" class="ic-sm" /> {busy === "fetch" ? "…" : "Fetch"}
+      </button>
+      <button class="gbtn" disabled={!!busy} onclick={() => op("pull", () => git.pull(repoPath!), "Pull выполнен")}>
+        <Icon name="arrow-down" class="ic-sm" /> {busy === "pull" ? "…" : "Pull"}
+      </button>
+      <button class="gbtn primary" disabled={!!busy} onclick={() => op("push", () => git.push(repoPath!), "Push выполнен")}>
+        <Icon name="arrow-up" class="ic-sm" /> {busy === "push" ? "…" : "Push"}
+      </button>
+    </div>
   </div>
 {:else if loaded && repoPath}
   <div class="git-bar">

@@ -31,3 +31,5 @@ export type GitStatus = {
   lastMessage: string | null;
   lastTimestamp: number | null;
 };
+
+export type GitOpResult = { ok: boolean; output: string };
