@@ -12,7 +12,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // Каталог данных: %APPDATA%\DevDeck\
+            // Каталог данных: %APPDATA%\com.devdeck.app\ (по identifier)
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             std::fs::create_dir_all(dir.join("backups"))?;

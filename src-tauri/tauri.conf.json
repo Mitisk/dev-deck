@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "devdeck-scaffold",
+  "productName": "DevDeck",
   "version": "0.1.0",
-  "identifier": "com.pitak.devdeck-scaffold",
+  "identifier": "com.devdeck.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "devdeck-scaffold",
+        "title": "DevDeck",
         "width": 800,
         "height": 600
       }

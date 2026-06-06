@@ -1,17 +1,11 @@
-// lucide подключён глобально через <script> в app.html (window.lucide).
-declare global {
-  interface Window {
-    lucide?: { createIcons: (opts?: { nameAttr?: string }) => void };
-  }
-}
+import { createIcons, icons } from "lucide";
 
-// Перерисовать <svg data-lucide="name"> в реальные иконки.
+// Иконки бандлятся локально (без CDN). Наши плейсхолдеры — <svg data-lucide="name">,
+// поэтому nameAttr = "data-lucide".
 export function paintIcons(): void {
-  window.lucide?.createIcons();
+  createIcons({ icons, nameAttr: "data-lucide" });
 }
 
 export function ico(name: string, cls = "ic"): string {
   return `<svg class="${cls}" data-lucide="${name}"></svg>`;
 }
-
-export {};
