@@ -11,10 +11,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/tests/**/*.test.ts"],
-    // Один форк-процесс: стабильнее на Windows, чем пул воркеров (тот изредка
-    // молча падает при быстром последовательном запуске). Для пары тест-файлов
-    // параллелизм не нужен.
+    // Один форк-воркер: стабильнее на Windows, чем пул (тот изредка молча падает
+    // при быстром последовательном запуске). В Vitest 4 poolOptions удалён —
+    // используем top-level maxWorkers/minWorkers.
     pool: "forks",
-    poolOptions: { forks: { singleFork: true } },
+    maxWorkers: 1,
+    minWorkers: 1,
   },
 });
