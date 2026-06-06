@@ -1,4 +1,5 @@
 mod commands;
+mod crypto;
 mod db;
 mod error;
 mod models;
