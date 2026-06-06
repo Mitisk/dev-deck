@@ -33,3 +33,18 @@ pub struct ProjectInput {
     #[serde(default)]
     pub tags: Vec<String>,
 }
+
+/// Снимок состояния git-репозитория (read-only).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatus {
+    pub branch: Option<String>,
+    pub ahead: usize,
+    pub behind: usize,
+    pub dirty: usize,
+    pub staged: usize,
+    pub untracked: usize,
+    pub last_hash: Option<String>,
+    pub last_message: Option<String>,
+    pub last_timestamp: Option<i64>, // unix seconds; форматируется на фронте
+}

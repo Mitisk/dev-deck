@@ -36,6 +36,7 @@ pub fn run() {
             commands::actions::open_in_editor,
             commands::actions::open_terminal,
             commands::actions::open_url,
+            commands::git::git_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

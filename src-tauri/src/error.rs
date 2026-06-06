@@ -32,4 +32,10 @@ impl From<rusqlite::Error> for AppError {
     }
 }
 
+impl From<git2::Error> for AppError {
+    fn from(e: git2::Error) -> Self {
+        AppError::internal(e.to_string())
+    }
+}
+
 pub type AppResult<T> = Result<T, AppError>;
