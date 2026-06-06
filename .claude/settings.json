@@ -13,7 +13,9 @@
       "PowerShell(git -C d:\\\\DevDeck init)",
       "PowerShell(git -C d:\\\\DevDeck checkout -b phase0-skeleton)",
       "PowerShell(git -C d:\\\\DevDeck add -A)",
-      "PowerShell(git -C d:\\\\DevDeck status)"
+      "PowerShell(git -C d:\\\\DevDeck status)",
+      "PowerShell(npm run check; Write-Output \"=== EXIT $LASTEXITCODE ===\")",
+      "PowerShell(npm run build; Write-Output \"=== EXIT $LASTEXITCODE ===\")"
     ]
   }
 }
