@@ -81,3 +81,23 @@ pub struct TaskInput {
     pub priority: Option<i64>,
     pub due_date: Option<String>,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChecklistItem {
+    pub id: i64,
+    pub checklist_id: i64,
+    pub text: String,
+    pub is_done: bool,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Checklist {
+    pub id: i64,
+    pub project_id: i64,
+    pub title: String,
+    pub sort_order: i64,
+    pub items: Vec<ChecklistItem>,
+}
