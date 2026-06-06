@@ -1,6 +1,8 @@
-use crate::error::AppResult;
-use crate::models::GitStatus;
+use crate::error::{AppError, AppResult, ErrorKind};
+use crate::models::{GitOpResult, GitStatus};
 use git2::{BranchType, Repository, Status, StatusOptions};
+use std::path::Path;
+use std::process::Command;
 
 /// Раскрыть ведущий `~` (libgit2 сам это не делает).
 fn expand(p: &str) -> String {
@@ -96,6 +98,58 @@ pub fn git_status(repo_path: String) -> AppResult<Option<GitStatus>> {
     }
 }
 
+/// Запустить системный `git` в папке репозитория без shell. Возвращает успех + вывод.
+fn run_git(repo: &str, args: &[&str]) -> AppResult<GitOpResult> {
+    let dir = expand(repo);
+    if !Path::new(&dir).is_dir() {
+        return Err(AppError { kind: ErrorKind::Validation, message: "Папка проекта не найдена".into() });
+    }
+    let out = Command::new("git")
+        .current_dir(&dir)
+        .args(args)
+        .output()
+        .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("Не удалось запустить git: {}", e) })?;
+
+    let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
+    let err = String::from_utf8_lossy(&out.stderr);
+    if !err.trim().is_empty() {
+        if !text.trim().is_empty() {
+            text.push('\n');
+        }
+        text.push_str(&err);
+    }
+    Ok(GitOpResult { ok: out.status.success(), output: text.trim().to_string() })
+}
+
+#[tauri::command]
+pub fn git_fetch(repo_path: String) -> AppResult<GitOpResult> {
+    run_git(&repo_path, &["fetch"])
+}
+
+#[tauri::command]
+pub fn git_pull(repo_path: String) -> AppResult<GitOpResult> {
+    run_git(&repo_path, &["pull"])
+}
+
+#[tauri::command]
+pub fn git_push(repo_path: String) -> AppResult<GitOpResult> {
+    run_git(&repo_path, &["push"])
+}
+
+/// `git add -A` затем `git commit -m <message>`. Сообщение — отдельный argv (без shell).
+#[tauri::command]
+pub fn git_commit_all(repo_path: String, message: String) -> AppResult<GitOpResult> {
+    let msg = message.trim();
+    if msg.is_empty() {
+        return Err(AppError { kind: ErrorKind::Validation, message: "Сообщение коммита пустое".into() });
+    }
+    let add = run_git(&repo_path, &["add", "-A"])?;
+    if !add.ok {
+        return Ok(add);
+    }
+    run_git(&repo_path, &["commit", "-m", msg])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,6 +210,26 @@ mod tests {
         let st = status_of(&repo).unwrap();
         assert_eq!(st.dirty, 0);
         assert_eq!(st.untracked, 0);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn commit_all_creates_commit_via_system_git() {
+        let (dir, _repo) = temp_repo();
+        // локальная identity, чтобы не зависеть от глобального git-конфига
+        let cfg = |args: &[&str]| {
+            std::process::Command::new("git").current_dir(&dir).args(args).output().unwrap();
+        };
+        cfg(&["config", "user.email", "t@example.com"]);
+        cfg(&["config", "user.name", "Test"]);
+        fs::write(dir.join("a.txt"), "x").unwrap();
+
+        let res = super::git_commit_all(dir.to_string_lossy().into_owned(), "первый коммит".into()).unwrap();
+        assert!(res.ok, "commit output: {}", res.output);
+
+        let log = std::process::Command::new("git").current_dir(&dir).args(["log", "--oneline"]).output().unwrap();
+        assert!(String::from_utf8_lossy(&log.stdout).contains("первый коммит"));
+
         let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -48,3 +48,11 @@ pub struct GitStatus {
     pub last_message: Option<String>,
     pub last_timestamp: Option<i64>, // unix seconds; форматируется на фронте
 }
+
+/// Результат сетевой/коммит-операции git: успех + объединённый вывод (stdout+stderr).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitOpResult {
+    pub ok: bool,
+    pub output: String,
+}
