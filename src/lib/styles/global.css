@@ -436,7 +436,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* ============================================================================
    ДАШБОРД (проект не выбран)
    ========================================================================== */
-.dash { padding: 8px 0; }
+.dash { padding: 8px 30px 60px; }
 .dash-hello { font-size: 24px; font-weight: 700; letter-spacing: -.4px; }
 .dash-hello span { color: var(--muted); font-weight: 600; }
 .dash-sub { color: var(--muted); margin-top: 4px; font-size: 13.5px; }

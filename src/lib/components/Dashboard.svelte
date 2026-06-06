@@ -1,14 +1,9 @@
 <script lang="ts">
   import { projects, activeProjectId } from "$lib/stores/projects";
   import { USER } from "$lib/mock";
-  import { paintIcons } from "$lib/icons";
+  import Icon from "./Icon.svelte";
 
   const pinned = $derived($projects.filter((p) => p.pinned));
-
-  $effect(() => {
-    pinned;
-    paintIcons();
-  });
 </script>
 
 <div class="ws-inner dash">
@@ -17,7 +12,7 @@
     <div class="dash-sub">{$projects.length} проектов</div>
   </div>
 
-  <h3 class="section-title"><svg class="ic-sm" data-lucide="star"></svg> Закреплённые проекты</h3>
+  <h3 class="section-title"><Icon name="star" class="ic-sm" /> Закреплённые проекты</h3>
   <div class="dash-cards">
     {#each pinned as p (p.id)}
       <div class="card dcard" style="--p-color:{p.color}" role="button" tabindex="0"

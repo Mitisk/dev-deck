@@ -2,7 +2,7 @@
   import { projects, activeProjectId } from "$lib/stores/projects";
   import { theme, toggleTheme } from "$lib/stores/theme";
   import { USER } from "$lib/mock";
-  import { paintIcons } from "$lib/icons";
+  import Icon from "./Icon.svelte";
 
   let query = $state("");
 
@@ -17,12 +17,6 @@
   const pinned = $derived(filtered.filter((p) => p.pinned));
   const rest = $derived(filtered.filter((p) => !p.pinned));
 
-  $effect(() => {
-    filtered;
-    $theme;
-    paintIcons();
-  });
-
   function select(id: string) {
     activeProjectId.set(id);
   }
@@ -30,18 +24,18 @@
 
 <aside class="sidebar">
   <div class="sb-head">
-    <span class="logo"><svg data-lucide="layout-grid"></svg></span>
+    <span class="logo"><Icon name="layout-grid" class="" /></span>
     <span class="wordmark">Dev<span>Deck</span></span>
     <span class="ver">0.1</span>
   </div>
 
   <div class="sb-search" class:has-q={query}>
-    <svg class="ic" data-lucide="search"></svg>
+    <Icon name="search" class="ic" />
     <input placeholder="Поиск проектов…" bind:value={query} />
     <span class="kbd">Ctrl K</span>
   </div>
 
-  <button class="sb-new"><svg class="ic ic-sm" data-lucide="plus"></svg> Новый проект</button>
+  <button class="sb-new"><Icon name="plus" class="ic ic-sm" /> Новый проект</button>
 
   <div class="sb-scroll">
     {#if pinned.length}
@@ -75,8 +69,8 @@
     <span class="avatar">{USER.initials}</span>
     <div class="who">{USER.name}<small>{USER.handle}</small></div>
     <button class="icon-btn" onclick={toggleTheme} title="Сменить тему">
-      {#if $theme === "dark"}<svg class="ic" data-lucide="sun"></svg>
-      {:else}<svg class="ic" data-lucide="moon"></svg>{/if}
+      {#if $theme === "dark"}<Icon name="sun" class="ic" />
+      {:else}<Icon name="moon" class="ic" />{/if}
     </button>
   </div>
 </aside>

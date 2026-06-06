@@ -2,7 +2,7 @@
   import type { Project } from "$lib/types";
   import { activeTab, type Tab } from "$lib/stores/ui";
   import { pushToast } from "$lib/stores/toasts";
-  import { paintIcons } from "$lib/icons";
+  import Icon from "./Icon.svelte";
 
   let { project }: { project: Project } = $props();
 
@@ -16,12 +16,6 @@
   ];
 
   const activeLabel = $derived(tabs.find((x) => x.key === $activeTab)?.label ?? "");
-
-  $effect(() => {
-    project;
-    $activeTab;
-    paintIcons();
-  });
 </script>
 
 <div class="ws-inner" style="--p-color:{project.color}">
@@ -36,7 +30,7 @@
     </div>
     <div class="head-actions">
       <button class="act" onclick={() => pushToast("Открываю папку", project.path, "info")}>
-        <svg class="ic-sm" data-lucide="folder-open"></svg> Папка
+        <Icon name="folder-open" class="ic-sm" /> Папка
       </button>
     </div>
   </div>
