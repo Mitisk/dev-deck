@@ -19,3 +19,15 @@ export type Project = {
 };
 
 export type User = { name: string; handle: string; initials: string };
+
+export type GitStatus = {
+  branch: string | null;
+  ahead: number;
+  behind: number;
+  dirty: number;
+  staged: number;
+  untracked: number;
+  lastHash: string | null;
+  lastMessage: string | null;
+  lastTimestamp: number | null;
+};

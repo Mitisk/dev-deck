@@ -5,6 +5,7 @@
   import * as actions from "$lib/api/actions";
   import Icon from "./Icon.svelte";
   import SettingsTab from "./SettingsTab.svelte";
+  import GitBar from "./GitBar.svelte";
 
   let { project }: { project: Project } = $props();
 
@@ -56,6 +57,8 @@
       </button>
     </div>
   </div>
+
+  <GitBar repoPath={project.repoPath ?? project.path} />
 
   <div class="tabs">
     {#each tabs as t}
