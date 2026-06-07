@@ -14,3 +14,6 @@ export const create = (projectId: number, input: CommandInput) => call<ProjectCo
 export const update = (id: number, input: CommandInput) => call<ProjectCommand>("commands_update", { id, input });
 export const remove = (id: number) => call<void>("commands_delete", { id });
 export const run = (id: number) => call<void>("command_run", { id });
+export const runBg = (id: number) => call<void>("command_run_bg", { id });
+export const stop = (id: number) => call<void>("command_stop", { id });
+export const running = () => call<number[]>("command_running");

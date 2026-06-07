@@ -5,6 +5,7 @@
   import * as cmdsApi from "$lib/api/commands";
   import * as actions from "$lib/api/actions";
   import { pushToast } from "$lib/stores/toasts";
+  import { onMount, onDestroy } from "svelte";
   import Icon from "./Icon.svelte";
 
   let { project }: { project: Project } = $props();
@@ -44,21 +45,27 @@
   let eLabel = $state("");
   let eCommand = $state("");
   let eDir = $state("");
+  let eRunIn = $state("terminal");
+  // фоновые команды
+  let runningIds = $state<number[]>([]);
+  let logs = $state<Record<number, string[]>>({});
+  let logFor = $state<number | null>(null);
+  let unlisten: Array<() => void> = [];
 
   function openNewCmd() {
     isNew = true;
     editing = { id: 0, projectId: project.id, label: "", command: "", workingDir: null, runIn: "terminal", icon: "play", sortOrder: 0 };
-    eLabel = ""; eCommand = ""; eDir = "";
+    eLabel = ""; eCommand = ""; eDir = ""; eRunIn = "terminal";
   }
   function openEditCmd(c: ProjectCommand) {
     isNew = false;
     editing = c;
-    eLabel = c.label; eCommand = c.command; eDir = c.workingDir ?? "";
+    eLabel = c.label; eCommand = c.command; eDir = c.workingDir ?? ""; eRunIn = c.runIn ?? "terminal";
   }
   async function saveCmd() {
     if (!editing) return;
     if (!eLabel.trim() || !eCommand.trim()) return;
-    const input = { label: eLabel.trim(), command: eCommand.trim(), workingDir: eDir.trim() || null, runIn: "terminal", icon: "play" };
+    const input = { label: eLabel.trim(), command: eCommand.trim(), workingDir: eDir.trim() || null, runIn: eRunIn, icon: "play" };
     if (isNew) await cmdsApi.create(project.id, input);
     else await cmdsApi.update(editing.id, input);
     editing = null;
@@ -72,9 +79,44 @@
     await load();
   }
   async function runCmd(c: ProjectCommand) {
+    if (c.runIn === "background") {
+      logs = { ...logs, [c.id]: logs[c.id] ?? [] };
+      logFor = c.id;
+      try {
+        await cmdsApi.runBg(c.id);
+        if (!runningIds.includes(c.id)) runningIds = [...runningIds, c.id];
+      } catch { /* тост из api/client.ts */ }
+      return;
+    }
     await cmdsApi.run(c.id);
     pushToast("Запуск", c.command, "info");
   }
+  async function stopCmd(id: number) {
+    try { await cmdsApi.stop(id); } catch { /* тост */ }
+  }
+  function openLogs(id: number) {
+    logs = { ...logs, [id]: logs[id] ?? [] };
+    logFor = id;
+  }
+  function appendLog(id: number, line: string) {
+    const cur = logs[id] ?? [];
+    const next = [...cur, line];
+    if (next.length > 500) next.splice(0, next.length - 500);
+    logs = { ...logs, [id]: next };
+  }
+
+  onMount(async () => {
+    try { runningIds = await cmdsApi.running(); } catch { /* нет бэка — игнор */ }
+    const { listen } = await import("@tauri-apps/api/event");
+    unlisten.push(await listen<{ id: number; line: string; err: boolean }>("cmd-log", (e) => {
+      appendLog(e.payload.id, (e.payload.err ? "[err] " : "") + e.payload.line);
+    }));
+    unlisten.push(await listen<{ id: number; code: number | null }>("cmd-exit", (e) => {
+      runningIds = runningIds.filter((x) => x !== e.payload.id);
+      appendLog(e.payload.id, `— процесс завершён (код ${e.payload.code ?? "?"}) —`);
+    }));
+  });
+  onDestroy(() => { unlisten.forEach((u) => u()); unlisten = []; });
 
   // --- ссылки/файлы ---
   async function addLink() {
@@ -113,7 +155,15 @@
             <span class="ico"><Icon name={c.icon ?? "play"} class="ic" /></span>
             <span class="lbl">{c.label}</span>
             <span class="run mono">{c.command}</span>
-            <span class="play" role="button" tabindex="-1"
+            {#if c.runIn === "background"}
+              <span class="play" role="button" tabindex="-1" title="Логи"
+                    onclick={(e) => { e.stopPropagation(); openLogs(c.id); }}><Icon name="scroll-text" class="ic-sm" /></span>
+              {#if runningIds.includes(c.id)}
+                <span class="play" role="button" tabindex="-1" title="Остановить" style="color:var(--danger)"
+                      onclick={(e) => { e.stopPropagation(); stopCmd(c.id); }}><Icon name="square" class="ic-sm" /></span>
+              {/if}
+            {/if}
+            <span class="play" role="button" tabindex="-1" title="Изменить"
                   onclick={(e) => { e.stopPropagation(); openEditCmd(c); }}><Icon name="pencil" class="ic-sm" /></span>
           </button>
         {/each}
@@ -184,13 +234,41 @@
         <div class="field"><label for="cm-cmd">Команда (shell)</label><input id="cm-cmd" class="tin mono" placeholder="npm run dev" bind:value={eCommand} /></div>
         <div class="field"><label for="cm-dir">Рабочая папка <span style="color:var(--muted-2)">(пусто = папка проекта)</span></label>
           <input id="cm-dir" class="tin mono" placeholder={project.path ?? "~/dev/project"} bind:value={eDir} /></div>
-        <p class="desc" style="color:var(--muted-2);font-size:12px">Запуск открывает новое окно терминала. Фоновый режим с логами — позже.</p>
+        <div class="field"><label for="cm-mode">Режим запуска</label>
+          <select id="cm-mode" class="tin" bind:value={eRunIn}>
+            <option value="terminal">В терминале (новое окно)</option>
+            <option value="background">В фоне (логи + стоп)</option>
+          </select></div>
+        <p class="desc" style="color:var(--muted-2);font-size:12px">Фоновый режим запускает процесс скрыто и стримит вывод в панель логов; «стоп» завершает дерево процессов.</p>
       </div>
       <div class="modal-foot">
         {#if !isNew}<button class="btn-danger" onclick={delCmd}><Icon name="trash-2" class="ic-sm" /> Удалить</button>{/if}
         <span class="spacer"></span>
         <button class="btn-ghost" onclick={() => (editing = null)}>Отмена</button>
         <button class="btn-primary" onclick={saveCmd}><Icon name="check" class="ic ic-sm" /> Сохранить</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if logFor !== null}
+  <div class="modal-scrim open" role="dialog" tabindex="-1" aria-label="Логи команды"
+       onmousedown={(e) => { if (e.currentTarget === e.target) (logFor = null); }}
+       onkeydown={(e) => { if (e.key === 'Escape') (logFor = null); }}>
+    <div class="modal" style="max-width:760px">
+      <div class="modal-head">
+        <span class="t">Логи: {cmds.find((c) => c.id === logFor)?.label ?? ""}</span>
+        <button class="icon-btn x" onclick={() => (logFor = null)}><Icon name="x" class="ic" /></button>
+      </div>
+      <div class="modal-body">
+        <pre class="mono" style="margin:0;max-height:50vh;overflow:auto;white-space:pre-wrap;font-size:12px;background:var(--bg-2,#0000);padding:8px;border-radius:8px">{(logs[logFor] ?? []).join("\n") || "— нет вывода —"}</pre>
+      </div>
+      <div class="modal-foot">
+        {#if runningIds.includes(logFor)}
+          <button class="btn-danger" onclick={() => logFor !== null && stopCmd(logFor)}><Icon name="square" class="ic-sm" /> Остановить</button>
+        {/if}
+        <span class="spacer"></span>
+        <button class="btn-ghost" onclick={() => (logFor = null)}>Закрыть</button>
       </div>
     </div>
   </div>
