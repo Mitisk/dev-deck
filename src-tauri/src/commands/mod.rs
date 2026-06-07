@@ -16,4 +16,5 @@ pub mod security;
 pub mod tasks;
 pub mod templates;
 pub mod transfer;
+pub mod tray;
 pub mod watch;

@@ -5,12 +5,13 @@ mod db;
 mod error;
 mod models;
 mod state;
+mod tray;
 mod watch;
 
 use state::AppState;
 use std::sync::Mutex;
-use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::Emitter;
 use tauri::Manager;
 use tauri::WindowEvent;
 
@@ -35,21 +36,30 @@ pub fn run() {
             backup::maybe_auto_backup(&conn, &dir.join("backups"));
             app.manage(AppState { db: Mutex::new(conn), master_key: Mutex::new(None) });
             app.manage(watch::WatchState::default());
+            app.manage(tray::TrayState::default());
 
             // --- системный трей ---
-            let open_i = MenuItem::with_id(app, "open", "Открыть DevDeck", true, None::<&str>)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_i, &quit_i])?;
+            let menu = tray::build_menu(app.handle())?;
 
-            let _tray = TrayIconBuilder::with_id("main-tray")
+            let tray_icon = TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().expect("есть иконка окна").clone())
                 .tooltip("DevDeck")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => show_main(app),
-                    "quit" => app.exit(0),
-                    _ => {}
+                .on_menu_event(|app, event| {
+                    let id = event.id.as_ref();
+                    match id {
+                        "open" => show_main(app),
+                        "quit" => app.exit(0),
+                        _ => {
+                            if let Some(rest) = id.strip_prefix("proj:") {
+                                if let Ok(pid) = rest.parse::<i64>() {
+                                    show_main(app);
+                                    let _ = app.emit("tray-open-project", pid);
+                                }
+                            }
+                        }
+                    }
                 })
                 .on_tray_icon_event(|tray, event| {
                     use tauri::tray::TrayIconEvent;
@@ -62,6 +72,11 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // сохранить хэндл трея для пересборки меню (закреплённые проекты)
+            if let Ok(mut g) = app.state::<tray::TrayState>().icon.lock() {
+                *g = Some(tray_icon);
+            }
 
             // --- закрытие окна = сворачивание в трей ---
             if let Some(window) = app.get_webview_window("main") {
@@ -162,6 +177,7 @@ pub fn run() {
             commands::security::master_unlock,
             commands::security::master_lock,
             commands::watch::watch_resync,
+            commands::tray::tray_resync,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
