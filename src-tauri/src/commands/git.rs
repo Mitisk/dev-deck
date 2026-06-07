@@ -1,8 +1,10 @@
 use crate::error::{AppError, AppResult, ErrorKind};
-use crate::models::{GitOpResult, GitStatus};
+use crate::models::{AttentionItem, GitOpResult, GitStatus};
+use crate::state::AppState;
 use git2::{BranchType, Repository, Status, StatusOptions};
 use std::path::Path;
 use std::process::Command;
+use tauri::State;
 
 /// Раскрыть ведущий `~` (libgit2 сам это не делает).
 fn expand(p: &str) -> String {
@@ -148,6 +150,52 @@ pub fn git_commit_all(repo_path: String, message: String) -> AppResult<GitOpResu
         return Ok(add);
     }
     run_git(&repo_path, &["commit", "-m", msg])
+}
+
+/// Проекты, требующие внимания: незакоммиченные изменения (dirty>0) или готовые к push (ahead>0).
+#[tauri::command]
+pub fn dashboard_attention(state: State<AppState>) -> AppResult<Vec<AttentionItem>> {
+    // Сначала под локом читаем список проектов, затем отпускаем лок и идём в git2.
+    let projects: Vec<(i64, String, Option<String>, Option<String>, Option<String>)> = {
+        let conn = state.db.lock().map_err(|_| crate::error::AppError::internal("db mutex poisoned"))?;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, color, icon, COALESCE(NULLIF(repo_path,''), path)
+             FROM projects WHERE status != 'archived' ORDER BY pinned DESC, sort_order ASC, name ASC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+        })?;
+        let mut v = Vec::new();
+        for row in rows {
+            v.push(row?);
+        }
+        v
+    };
+
+    let mut out = Vec::new();
+    for (id, name, color, icon, repo) in projects {
+        let Some(repo_path) = repo else { continue };
+        let p = expand(&repo_path);
+        if p.trim().is_empty() {
+            continue;
+        }
+        let Ok(repo) = Repository::open(&p) else { continue };
+        let Ok(st) = status_of(&repo) else { continue };
+        if st.dirty > 0 || st.ahead > 0 {
+            out.push(AttentionItem {
+                project_id: id,
+                name,
+                color,
+                icon,
+                branch: st.branch,
+                ahead: st.ahead,
+                dirty: st.dirty,
+                last_hash: st.last_hash,
+                last_message: st.last_message,
+            });
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

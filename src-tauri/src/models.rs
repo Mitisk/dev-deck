@@ -195,3 +195,17 @@ pub struct SearchHit {
     pub title: String,
     pub subtitle: String,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttentionItem {
+    pub project_id: i64,
+    pub name: String,
+    pub color: Option<String>,
+    pub icon: Option<String>,
+    pub branch: Option<String>,
+    pub ahead: usize,
+    pub dirty: usize,
+    pub last_hash: Option<String>,
+    pub last_message: Option<String>,
+}
