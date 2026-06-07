@@ -75,3 +75,11 @@ export type Credential = {
   sortOrder: number;
   hasSecret: boolean;
 };
+
+export type Note = {
+  id: number;
+  projectId: number;
+  title: string | null;
+  contentMd: string | null;
+  updatedAt: string;
+};

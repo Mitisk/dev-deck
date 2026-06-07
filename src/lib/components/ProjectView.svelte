@@ -8,6 +8,7 @@
   import TasksTab from "./TasksTab.svelte";
   import ChecklistsTab from "./ChecklistsTab.svelte";
   import CredsTab from "./CredsTab.svelte";
+  import NotesTab from "./NotesTab.svelte";
   import GitBar from "./GitBar.svelte";
 
   let { project }: { project: Project } = $props();
@@ -78,6 +79,8 @@
       <ChecklistsTab {project} />
     {:else if $activeTab === "creds"}
       <CredsTab {project} />
+    {:else if $activeTab === "notes"}
+      <NotesTab {project} />
     {:else}
       {#if project.description}<p class="desc">{project.description}</p>{/if}
       <p class="desc" style="color:var(--muted);margin-top:14px">
