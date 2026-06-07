@@ -68,6 +68,21 @@ pub fn task_set_labels(state: State<AppState>, task_id: i64, label_ids: Vec<i64>
     Ok(())
 }
 
+/// Переставить метки: выставить sort_order по порядку переданных id.
+#[tauri::command]
+pub fn labels_reorder(state: State<AppState>, project_id: i64, ids: Vec<i64>) -> AppResult<()> {
+    let conn = lock(&state)?;
+    let tx = conn.unchecked_transaction()?;
+    for (i, id) in ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE labels SET sort_order=?2 WHERE id=?1 AND project_id=?3",
+            params![id, i as i64, project_id],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,5 +117,25 @@ mod tests {
         conn.execute("DELETE FROM labels WHERE id=?1", [l1]).unwrap();
         let cnt2: i64 = conn.query_row("SELECT count(*) FROM task_labels WHERE task_id=?1", [tid], |r| r.get(0)).unwrap();
         assert_eq!(cnt2, 1);
+    }
+
+    #[test]
+    fn reorder_labels_sets_sort_order() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let pid = conn.last_insert_rowid();
+        conn.execute("INSERT INTO labels(project_id,name,color,sort_order) VALUES(?1,'a',NULL,0)", [pid]).unwrap();
+        let a = conn.last_insert_rowid();
+        conn.execute("INSERT INTO labels(project_id,name,color,sort_order) VALUES(?1,'b',NULL,1)", [pid]).unwrap();
+        let b = conn.last_insert_rowid();
+        // поменять местами: b, a
+        let rev = [b, a];
+        let tx = conn.unchecked_transaction().unwrap();
+        for (i, id) in rev.iter().enumerate() {
+            conn.execute("UPDATE labels SET sort_order=?2 WHERE id=?1 AND project_id=?3", params![id, i as i64, pid]).unwrap();
+        }
+        tx.commit().unwrap();
+        let first: i64 = conn.query_row("SELECT id FROM labels WHERE project_id=?1 ORDER BY sort_order LIMIT 1", [pid], |r| r.get(0)).unwrap();
+        assert_eq!(first, b);
     }
 }

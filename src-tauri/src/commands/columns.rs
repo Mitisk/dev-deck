@@ -125,3 +125,52 @@ pub fn column_delete(state: State<AppState>, id: i64) -> AppResult<()> {
     conn.execute("DELETE FROM task_columns WHERE id=?1", [id])?;
     Ok(())
 }
+
+/// Переставить колонки: выставить sort_order по порядку переданных id.
+#[tauri::command]
+pub fn columns_reorder(state: State<AppState>, project_id: i64, ids: Vec<i64>) -> AppResult<()> {
+    let conn = lock(&state)?;
+    let tx = conn.unchecked_transaction()?;
+    for (i, id) in ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE task_columns SET sort_order=?2 WHERE id=?1 AND project_id=?3",
+            params![id, i as i64, project_id],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+
+    fn mem() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        db::migrations::run(&conn).unwrap();
+        conn
+    }
+
+    #[test]
+    fn reorder_columns_sets_sort_order() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let pid = conn.last_insert_rowid();
+        seed_default_columns(&conn, pid).unwrap();
+        let ids: Vec<i64> = {
+            let mut s = conn.prepare("SELECT id FROM task_columns WHERE project_id=?1 ORDER BY sort_order").unwrap();
+            let r = s.query_map([pid], |r| r.get::<_, i64>(0)).unwrap();
+            r.map(|x| x.unwrap()).collect()
+        };
+        let rev: Vec<i64> = ids.iter().rev().cloned().collect();
+        let tx = conn.unchecked_transaction().unwrap();
+        for (i, id) in rev.iter().enumerate() {
+            conn.execute("UPDATE task_columns SET sort_order=?2 WHERE id=?1 AND project_id=?3", params![id, i as i64, pid]).unwrap();
+        }
+        tx.commit().unwrap();
+        let first: i64 = conn.query_row("SELECT id FROM task_columns WHERE project_id=?1 ORDER BY sort_order LIMIT 1", [pid], |r| r.get(0)).unwrap();
+        assert_eq!(first, rev[0]);
+    }
+}
