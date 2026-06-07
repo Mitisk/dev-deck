@@ -16,4 +16,5 @@ export const move = (id: number, status: TaskStatus, sortOrder: number) =>
   call<void>("tasks_move", { id, status, sortOrder });
 export const reorder = (projectId: number, status: TaskStatus, ids: number[]) =>
   call<void>("tasks_reorder", { projectId, status, ids });
+export const deleteCompleted = (projectId: number) => call<number>("tasks_delete_completed", { projectId });
 export const remove = (id: number) => call<void>("tasks_delete", { id });

@@ -7,6 +7,7 @@
   import * as cmdsApi from "$lib/api/commands";
   import * as linksApi from "$lib/api/links";
   import * as filesApi from "$lib/api/files";
+  import * as tasksApi from "$lib/api/tasks";
   import Icon from "./Icon.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
 
@@ -63,6 +64,7 @@
   let icon = $state(project.icon ?? EMOJI[0]);
   let color = $state(project.color ?? COLORS[0]);
   let confirmDelete = $state(false);
+  let confirmClearDone = $state(false);
 
   // Если переключили проект — перезаполнить форму.
   let lastId = $state(project.id);
@@ -109,6 +111,12 @@
     await loadProjects();
     activeProjectId.set(null);
     pushToast("Проект удалён", project.name, "ok");
+  }
+
+  async function doClearDone() {
+    confirmClearDone = false;
+    const n = await tasksApi.deleteCompleted(project.id);
+    pushToast(n ? "Завершённые удалены" : "Нечего удалять", n ? `Удалено задач: ${n}` : "Завершённых задач нет", n ? "ok" : "info");
   }
 </script>
 
@@ -223,6 +231,11 @@
   <div class="card set-card danger-zone" style="margin-top:22px">
     <h3 class="section-title">Опасная зона</h3>
     <div class="dz-row">
+      <div class="dz-txt">Удалить завершённые задачи<small>Безвозвратно удалит все выполненные задачи проекта.</small></div>
+      <span class="spacer"></span>
+      <button class="btn-ghost" onclick={() => (confirmClearDone = true)}><Icon name="check-check" class="ic-sm" /> Очистить</button>
+    </div>
+    <div class="dz-row" style="margin-top:12px">
       <div class="dz-txt">Архивировать проект<small>Скроет из списка, данные сохранятся.</small></div>
       <span class="spacer"></span>
       <button class="btn-ghost" onclick={doArchive}><Icon name="archive" class="ic-sm" /> В архив</button>
@@ -242,6 +255,14 @@
   confirmLabel="Удалить навсегда"
   onConfirm={doDelete}
   onCancel={() => (confirmDelete = false)} />
+
+<ConfirmDialog
+  open={confirmClearDone}
+  title="Удалить завершённые задачи?"
+  message="Все выполненные задачи проекта будут удалены безвозвратно."
+  confirmLabel="Удалить"
+  onConfirm={doClearDone}
+  onCancel={() => (confirmClearDone = false)} />
 
 {#if cmdEditing}
   <div class="modal-scrim open" role="dialog" tabindex="-1" aria-label="Команда"

@@ -110,6 +110,15 @@ fn delete_task(conn: &Connection, id: i64) -> AppResult<()> {
     Ok(())
 }
 
+/// Удалить все завершённые задачи проекта (в «выполненной» колонке). Возвращает число удалённых.
+fn delete_completed_tasks(conn: &Connection, project_id: i64) -> AppResult<i64> {
+    let n = conn.execute(
+        "DELETE FROM tasks WHERE project_id = ?1 AND completed_at IS NOT NULL",
+        [project_id],
+    )?;
+    Ok(n as i64)
+}
+
 /// Переставить/перенести задачи: всем id выставить переданный `status` и
 /// `sort_order` по их позиции в списке (вставка в конкретное место + переход
 /// между колонками за одну операцию). `completed_at` ставится/снимается по тому,
@@ -157,6 +166,12 @@ pub fn tasks_move(state: State<AppState>, id: i64, status: String, sort_order: i
 pub fn tasks_reorder(state: State<AppState>, project_id: i64, status: String, ids: Vec<i64>) -> AppResult<()> {
     let conn = lock(&state)?;
     reorder_tasks(&conn, project_id, &status, &ids)
+}
+
+#[tauri::command]
+pub fn tasks_delete_completed(state: State<AppState>, project_id: i64) -> AppResult<i64> {
+    let conn = lock(&state)?;
+    delete_completed_tasks(&conn, project_id)
 }
 
 #[tauri::command]
@@ -262,6 +277,19 @@ mod tests {
         assert_eq!(at.status, "done");
         assert_eq!(at.sort_order, 0);
         assert!(at.completed_at.is_some());
+    }
+
+    #[test]
+    fn delete_completed_removes_only_done() {
+        let conn = mem();
+        let pid = project(&conn);
+        let a = create_task(&conn, pid, input("A", "todo")).unwrap();
+        let b = create_task(&conn, pid, input("B", "todo")).unwrap();
+        move_task(&conn, b.id, "done", 0).unwrap(); // b → выполнена (completed_at)
+        let n = delete_completed_tasks(&conn, pid).unwrap();
+        assert_eq!(n, 1);
+        let rest: Vec<i64> = list_tasks(&conn, pid).unwrap().into_iter().map(|t| t.id).collect();
+        assert_eq!(rest, vec![a.id]);
     }
 
     #[test]
