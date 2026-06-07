@@ -108,11 +108,28 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* ============================================================================
    КАРКАС: сайдбар + рабочая область
    ========================================================================== */
+.shell { display: flex; flex-direction: column; height: 100vh; }
 #app {
   display: grid;
   grid-template-columns: 300px 1fr;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
 }
+
+/* ---------- Кастомный титлбар (безрамочное окно) ---------- */
+.titlebar {
+  flex: none; height: 34px; display: flex; align-items: stretch;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  user-select: none; -webkit-user-select: none;
+}
+.tb-drag { flex: 1; }
+.tb-controls { display: flex; flex: none; }
+.tb-btn {
+  width: 46px; height: 100%; display: grid; place-items: center;
+  background: none; border: 0; color: var(--muted); cursor: default; transition: background var(--t), color var(--t);
+}
+.tb-btn:hover { background: var(--hover); color: var(--text); }
+.tb-btn.close:hover { background: #e81123; color: #fff; }
 
 /* ---------- Сайдбар ---------- */
 .sidebar {
