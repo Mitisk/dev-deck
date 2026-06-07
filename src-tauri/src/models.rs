@@ -231,3 +231,10 @@ pub struct ChecklistTemplate {
     pub name: String,
     pub items: Vec<String>,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CryptoStatus {
+    pub mode: String, // "dpapi" | "master"
+    pub locked: bool, // master && ключ не загружен
+}

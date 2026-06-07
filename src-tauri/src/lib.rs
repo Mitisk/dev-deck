@@ -32,7 +32,7 @@ pub fn run() {
             let conn = db::open(&dir.join("devdeck.db"))
                 .map_err(|e| format!("db init failed: {}", e.message))?;
             backup::maybe_auto_backup(&conn, &dir.join("backups"));
-            app.manage(AppState { db: Mutex::new(conn) });
+            app.manage(AppState { db: Mutex::new(conn), master_key: Mutex::new(None) });
 
             // --- системный трей ---
             let open_i = MenuItem::with_id(app, "open", "Открыть DevDeck", true, None::<&str>)?;
@@ -140,6 +140,11 @@ pub fn run() {
             commands::transfer::export_json,
             commands::transfer::export_to_file,
             commands::transfer::import_json,
+            commands::security::crypto_status,
+            commands::security::master_enable,
+            commands::security::master_disable,
+            commands::security::master_unlock,
+            commands::security::master_lock,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

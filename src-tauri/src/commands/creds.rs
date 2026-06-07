@@ -1,4 +1,4 @@
-use crate::crypto;
+use crate::commands::security::{decrypt_secret, encrypt_secret};
 use crate::error::{AppError, AppResult, ErrorKind};
 use crate::models::{CredInput, Credential};
 use crate::state::AppState;
@@ -60,7 +60,7 @@ pub fn creds_get_secret(state: State<AppState>, id: i64) -> AppResult<String> {
         conn.query_row("SELECT secret_encrypted FROM credentials WHERE id = ?1", [id], |r| r.get(0))?;
     match blob {
         Some(b) if !b.is_empty() => {
-            let plain = crypto::decrypt(&b)?;
+            let plain = decrypt_secret(&conn, &state.master_key, &b)?;
             Ok(String::from_utf8_lossy(&plain).into_owned())
         }
         _ => Ok(String::new()),
@@ -77,7 +77,7 @@ pub fn creds_create(state: State<AppState>, project_id: i64, input: CredInput) -
         |r| r.get(0),
     )?;
     let secret_blob: Option<Vec<u8>> = match input.secret.as_deref() {
-        Some(s) if !s.is_empty() => Some(crypto::encrypt(s.as_bytes())?),
+        Some(s) if !s.is_empty() => Some(encrypt_secret(&conn, &state.master_key, s.as_bytes())?),
         _ => None,
     };
     conn.execute(
@@ -111,7 +111,7 @@ pub fn creds_update(state: State<AppState>, id: i64, input: CredInput) -> AppRes
     }
     // Секрет меняем только если передан (Some). Some("") = очистить.
     if let Some(s) = input.secret.as_deref() {
-        let blob: Option<Vec<u8>> = if s.is_empty() { None } else { Some(crypto::encrypt(s.as_bytes())?) };
+        let blob: Option<Vec<u8>> = if s.is_empty() { None } else { Some(encrypt_secret(&conn, &state.master_key, s.as_bytes())?) };
         conn.execute("UPDATE credentials SET secret_encrypted=?2 WHERE id=?1", params![id, blob])?;
     }
     row_to_cred(&conn, id)
@@ -127,6 +127,7 @@ pub fn creds_delete(state: State<AppState>, id: i64) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto;
     use crate::db;
 
     fn mem() -> Connection {

@@ -5,4 +5,5 @@ use std::sync::Mutex;
 /// Mutex<Connection> достаточно, пул не нужен.
 pub struct AppState {
     pub db: Mutex<Connection>,
+    pub master_key: Mutex<Option<[u8; 32]>>,
 }

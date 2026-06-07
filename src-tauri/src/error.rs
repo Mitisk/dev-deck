@@ -15,6 +15,7 @@ pub enum ErrorKind {
     NotFound,
     Validation,
     Internal,
+    Locked,
 }
 
 impl AppError {

@@ -1,9 +1,10 @@
-use crate::crypto;
+use crate::commands::security::{decrypt_secret, encrypt_secret};
 use crate::error::{AppError, AppResult, ErrorKind};
 use crate::models::ImportSummary;
 use crate::state::AppState;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, State};
 
@@ -71,7 +72,11 @@ where F: Fn(&rusqlite::Row) -> rusqlite::Result<T> {
     Ok(v)
 }
 
-fn build_export(conn: &Connection, include_secrets: bool) -> AppResult<ExportDoc> {
+fn build_export(
+    conn: &Connection,
+    mk: &Mutex<Option<[u8; 32]>>,
+    include_secrets: bool,
+) -> AppResult<ExportDoc> {
     let mut projects = Vec::new();
     let mut pstmt = conn.prepare(
         "SELECT id, name, description, status, color, icon, path, repo_path, pinned, sort_order FROM projects ORDER BY sort_order, id",
@@ -107,7 +112,7 @@ fn build_export(conn: &Connection, include_secrets: bool) -> AppResult<ExportDoc
             let secret = if include_secrets {
                 let blob: Option<Vec<u8>> = conn.query_row("SELECT secret_encrypted FROM credentials WHERE id=?1", [cid], |r| r.get(0))?;
                 match blob {
-                    Some(b) if !b.is_empty() => Some(String::from_utf8_lossy(&crypto::decrypt(&b)?).into_owned()),
+                    Some(b) if !b.is_empty() => Some(String::from_utf8_lossy(&decrypt_secret(conn, mk, &b)?).into_owned()),
                     _ => None,
                 }
             } else { None };
@@ -127,7 +132,11 @@ fn build_export(conn: &Connection, include_secrets: bool) -> AppResult<ExportDoc
     })
 }
 
-fn import_doc(conn: &Connection, doc: &ExportDoc) -> AppResult<usize> {
+fn import_doc(
+    conn: &Connection,
+    mk: &Mutex<Option<[u8; 32]>>,
+    doc: &ExportDoc,
+) -> AppResult<usize> {
     for p in &doc.projects {
         conn.execute(
             "INSERT INTO projects(name,description,status,color,icon,path,repo_path,pinned,sort_order)
@@ -168,7 +177,7 @@ fn import_doc(conn: &Connection, doc: &ExportDoc) -> AppResult<usize> {
         }
         for cr in &p.creds {
             let blob: Option<Vec<u8>> = match cr.secret.as_deref() {
-                Some(s) if !s.is_empty() => Some(crypto::encrypt(s.as_bytes())?),
+                Some(s) if !s.is_empty() => Some(encrypt_secret(conn, mk, s.as_bytes())?),
                 _ => None,
             };
             conn.execute("INSERT INTO credentials(project_id,label,type,username,url,secret_encrypted,notes,sort_order) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
@@ -183,7 +192,7 @@ fn import_doc(conn: &Connection, doc: &ExportDoc) -> AppResult<usize> {
 #[tauri::command]
 pub fn export_json(state: State<AppState>, include_secrets: bool) -> AppResult<String> {
     let conn = state.db.lock().map_err(|_| AppError::internal("db mutex poisoned"))?;
-    let doc = build_export(&conn, include_secrets)?;
+    let doc = build_export(&conn, &state.master_key, include_secrets)?;
     serde_json::to_string_pretty(&doc).map_err(|e| AppError { kind: ErrorKind::Internal, message: format!("JSON: {}", e) })
 }
 
@@ -205,14 +214,16 @@ pub fn import_json(state: State<AppState>, json: String) -> AppResult<ImportSumm
     let doc: ExportDoc = serde_json::from_str(&json)
         .map_err(|e| AppError { kind: ErrorKind::Validation, message: format!("Некорректный JSON: {}", e) })?;
     let conn = state.db.lock().map_err(|_| AppError::internal("db mutex poisoned"))?;
-    let n = import_doc(&conn, &doc)?;
+    let n = import_doc(&conn, &state.master_key, &doc)?;
     Ok(ImportSummary { projects: n })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto;
     use crate::db;
+    use std::sync::Mutex;
 
     fn mem() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -231,7 +242,7 @@ mod tests {
         let blob = crypto::encrypt(b"shh").unwrap();
         src.execute("INSERT INTO credentials(project_id,label,type,secret_encrypted,sort_order) VALUES(?1,'Stripe','api_key',?2,0)", params![pid, blob]).unwrap();
 
-        let doc = build_export(&src, true).unwrap();
+        let doc = build_export(&src, &Mutex::new(None), true).unwrap();
         assert_eq!(doc.projects.len(), 1);
         assert_eq!(doc.projects[0].creds[0].secret.as_deref(), Some("shh"));
 
@@ -239,7 +250,7 @@ mod tests {
         let parsed: ExportDoc = serde_json::from_str(&json).unwrap();
 
         let dst = mem();
-        let n = import_doc(&dst, &parsed).unwrap();
+        let n = import_doc(&dst, &Mutex::new(None), &parsed).unwrap();
         assert_eq!(n, 1);
         let tasks: i64 = dst.query_row("SELECT count(*) FROM tasks", [], |r| r.get(0)).unwrap();
         assert_eq!(tasks, 1);
@@ -255,7 +266,7 @@ mod tests {
         let pid = src.last_insert_rowid();
         let blob = crypto::encrypt(b"x").unwrap();
         src.execute("INSERT INTO credentials(project_id,label,type,secret_encrypted,sort_order) VALUES(?1,'C','token',?2,0)", params![pid, blob]).unwrap();
-        let doc = build_export(&src, false).unwrap();
+        let doc = build_export(&src, &Mutex::new(None), false).unwrap();
         assert!(doc.projects[0].creds[0].secret.is_none());
     }
 }
