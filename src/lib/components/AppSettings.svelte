@@ -5,6 +5,8 @@
   import * as backup from "$lib/api/backup";
   import * as transfer from "$lib/api/transfer";
   import * as security from "$lib/api/security";
+  import { user, loadUser } from "$lib/stores/user";
+  import * as userApi from "$lib/api/user";
   import type { BackupInfo, CryptoStatus } from "$lib/types";
   import { save, open } from "@tauri-apps/plugin-dialog";
   import Icon from "./Icon.svelte";
@@ -18,8 +20,19 @@
   let pwd = $state("");
   let pwd2 = $state("");
 
+  let uName = $state("");
+  let uHandle = $state("");
+  async function saveProfile() {
+    busy = true;
+    try {
+      await userApi.set(uName, uHandle || null);
+      await loadUser();
+      pushToast("Профиль сохранён", uName.trim() || "Пользователь", "ok");
+    } finally { busy = false; }
+  }
+
   $effect(() => {
-    if ($showSettings) { refreshBackups(); refreshCrypto(); }
+    if ($showSettings) { refreshBackups(); refreshCrypto(); uName = $user.name; uHandle = $user.handle ?? ""; }
   });
   async function refreshBackups() {
     try { backups = await backup.backupsList(); } catch { /* */ }
@@ -101,6 +114,15 @@
         <button class="icon-btn x" onclick={() => showSettings.set(false)}><Icon name="x" class="ic" /></button>
       </div>
       <div class="modal-body">
+        <div class="field">
+          <label>Профиль</label>
+          <div class="set-grid">
+            <div class="field"><label for="u-name">Имя</label><input id="u-name" class="tin" placeholder="Ваше имя" bind:value={uName} /></div>
+            <div class="field"><label for="u-handle">Хэндл <span style="color:var(--muted-2)">(необязательно)</span></label><input id="u-handle" class="tin mono" placeholder="@nick" bind:value={uHandle} /></div>
+          </div>
+          <div style="margin-top:8px"><button class="btn-ghost" disabled={busy} onclick={saveProfile}><Icon name="user" class="ic-sm" /> Сохранить профиль</button></div>
+        </div>
+
         <div class="field">
           <label>Безопасность секретов</label>
           <div style="color:var(--muted);font-size:12px;margin-bottom:8px">

@@ -2,7 +2,7 @@
   import { projects, activeProjectId, projectsLoaded } from "$lib/stores/projects";
   import { recents } from "$lib/stores/recents";
   import { showNewProject } from "$lib/stores/ui";
-  import { USER } from "$lib/mock";
+  import { displayName } from "$lib/stores/user";
   import { statusLabel } from "$lib/format";
   import * as dash from "$lib/api/dashboard";
   import * as actions from "$lib/api/actions";
@@ -72,7 +72,7 @@
 
 <div class="ws-inner dash">
   <div style="margin-bottom:22px">
-    <div class="dash-hello">Привет, <span>{USER.name}</span></div>
+    <div class="dash-hello">Привет, <span>{$displayName}</span></div>
     <div class="dash-sub">{visible.length} {visible.length === 1 ? "проект" : "проектов"} · {attention.length} требуют внимания</div>
   </div>
 

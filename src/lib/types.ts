@@ -20,6 +20,8 @@ export type Project = {
 
 export type User = { name: string; handle: string; initials: string };
 
+export type UserProfile = { name: string; handle: string | null };
+
 export type GitStatus = {
   branch: string | null;
   ahead: number;

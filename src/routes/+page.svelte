@@ -9,10 +9,12 @@
   import { showPalette } from "$lib/stores/ui";
   import { loadProjects, activeProjectId } from "$lib/stores/projects";
   import { startWatchEvents } from "$lib/stores/changed";
+  import { loadUser } from "$lib/stores/user";
   import * as watchApi from "$lib/api/watch";
   import { onMount } from "svelte";
 
   onMount(async () => {
+    await loadUser();
     await loadProjects();
     await startWatchEvents();
     void watchApi.resync(); // пересобрать вотчер под текущие проекты

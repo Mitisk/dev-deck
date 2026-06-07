@@ -3,7 +3,8 @@
   import { showNewProject, showSettings } from "$lib/stores/ui";
   import { theme, toggleTheme } from "$lib/stores/theme";
   import { changedProjects } from "$lib/stores/changed";
-  import { USER } from "$lib/mock";
+  import { displayName, initials } from "$lib/stores/user";
+  import { user } from "$lib/stores/user";
   import Icon from "./Icon.svelte";
 
   let query = $state("");
@@ -76,8 +77,8 @@
   </div>
 
   <div class="sb-foot">
-    <span class="avatar">{USER.initials}</span>
-    <div class="who">{USER.name}<small>{USER.handle}</small></div>
+    <span class="avatar">{$initials}</span>
+    <div class="who">{$displayName}{#if $user.handle}<small>{$user.handle}</small>{/if}</div>
     <button class="icon-btn" onclick={toggleTheme} title="Сменить тему">
       {#if $theme === "dark"}<Icon name="sun" class="ic" />{:else}<Icon name="moon" class="ic" />{/if}
     </button>
