@@ -12,6 +12,7 @@ pub struct Project {
     pub icon: Option<String>, // emoji
     pub path: Option<String>,
     pub repo_path: Option<String>,
+    pub health_url: Option<String>,
     pub pinned: bool,
     pub sort_order: i64,
     pub tags: Vec<String>,
@@ -30,6 +31,7 @@ pub struct ProjectInput {
     pub icon: Option<String>,
     pub path: Option<String>,
     pub repo_path: Option<String>,
+    pub health_url: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
 }

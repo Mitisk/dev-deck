@@ -38,7 +38,7 @@ fn set_tags(conn: &Connection, project_id: i64, tags: &[String]) -> AppResult<()
 
 fn row_to_project(conn: &Connection, id: i64) -> AppResult<Project> {
     let mut p = conn.query_row(
-        "SELECT id, name, description, status, color, icon, path, repo_path,
+        "SELECT id, name, description, status, color, icon, path, repo_path, health_url,
                 pinned, sort_order, created_at, updated_at
          FROM projects WHERE id = ?1",
         [id],
@@ -52,11 +52,12 @@ fn row_to_project(conn: &Connection, id: i64) -> AppResult<Project> {
                 icon: r.get(5)?,
                 path: r.get(6)?,
                 repo_path: r.get(7)?,
-                pinned: r.get::<_, i64>(8)? != 0,
-                sort_order: r.get(9)?,
+                health_url: r.get(8)?,
+                pinned: r.get::<_, i64>(9)? != 0,
+                sort_order: r.get(10)?,
                 tags: Vec::new(),
-                created_at: r.get(10)?,
-                updated_at: r.get(11)?,
+                created_at: r.get(11)?,
+                updated_at: r.get(12)?,
             })
         },
     )?;
@@ -98,8 +99,8 @@ pub fn projects_create(state: State<AppState>, input: ProjectInput) -> AppResult
     let conn = lock(&state)?;
     let next_sort: i64 = conn.query_row("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM projects", [], |r| r.get(0))?;
     conn.execute(
-        "INSERT INTO projects(name, description, status, color, icon, path, repo_path, pinned, sort_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, ?8)",
+        "INSERT INTO projects(name, description, status, color, icon, path, repo_path, health_url, pinned, sort_order)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9)",
         params![
             name,
             input.description,
@@ -108,6 +109,7 @@ pub fn projects_create(state: State<AppState>, input: ProjectInput) -> AppResult
             input.icon,
             input.path,
             input.repo_path,
+            input.health_url,
             next_sort,
         ],
     )?;
@@ -126,12 +128,12 @@ pub fn projects_update(state: State<AppState>, id: i64, input: ProjectInput) -> 
     let conn = lock(&state)?;
     let n = conn.execute(
         "UPDATE projects SET name=?2, description=?3, status=?4, color=?5, icon=?6,
-                path=?7, repo_path=?8, updated_at=datetime('now')
+                path=?7, repo_path=?8, health_url=?9, updated_at=datetime('now')
          WHERE id=?1",
         params![
             id, name, input.description,
             input.status.as_deref().unwrap_or("active"),
-            input.color, input.icon, input.path, input.repo_path,
+            input.color, input.icon, input.path, input.repo_path, input.health_url,
         ],
     )?;
     if n == 0 {

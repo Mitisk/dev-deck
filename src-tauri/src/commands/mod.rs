@@ -8,6 +8,7 @@ pub mod files;
 pub mod git;
 pub mod links;
 pub mod health;
+pub mod monitor;
 pub mod labels;
 pub mod notes;
 pub mod projects;

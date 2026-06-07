@@ -31,4 +31,5 @@ argon2 = "0.5"
 rand = "0.8"
 hex = "0.4"
 notify-debouncer-mini = "0.4"
+ureq = "2"
 

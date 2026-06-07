@@ -98,6 +98,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::health::db_health,
+            commands::monitor::health_check,
             commands::projects::projects_list,
             commands::projects::projects_get,
             commands::projects::projects_create,
