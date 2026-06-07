@@ -14,4 +14,6 @@ export const create = (projectId: number, input: TaskInput) => call<Task>("tasks
 export const update = (id: number, input: TaskInput) => call<Task>("tasks_update", { id, input });
 export const move = (id: number, status: TaskStatus, sortOrder: number) =>
   call<void>("tasks_move", { id, status, sortOrder });
+export const reorder = (projectId: number, status: TaskStatus, ids: number[]) =>
+  call<void>("tasks_reorder", { projectId, status, ids });
 export const remove = (id: number) => call<void>("tasks_delete", { id });

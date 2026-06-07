@@ -110,6 +110,25 @@ fn delete_task(conn: &Connection, id: i64) -> AppResult<()> {
     Ok(())
 }
 
+/// Переставить/перенести задачи: всем id выставить переданный `status` и
+/// `sort_order` по их позиции в списке (вставка в конкретное место + переход
+/// между колонками за одну операцию). `completed_at` ставится/снимается по тому,
+/// является ли колонка `status` «выполненной».
+fn reorder_tasks(conn: &Connection, project_id: i64, status: &str, ids: &[i64]) -> AppResult<()> {
+    let done = is_done_column(conn, project_id, status);
+    let tx = conn.unchecked_transaction()?;
+    for (i, id) in ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE tasks SET status=?2, sort_order=?3,
+                    completed_at = CASE WHEN ?4=1 THEN COALESCE(completed_at, datetime('now')) ELSE NULL END
+             WHERE id=?1 AND project_id=?5",
+            params![id, status, i as i64, done as i64, project_id],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn tasks_list(state: State<AppState>, project_id: i64) -> AppResult<Vec<Task>> {
     let conn = lock(&state)?;
@@ -132,6 +151,12 @@ pub fn tasks_update(state: State<AppState>, id: i64, input: TaskInput) -> AppRes
 pub fn tasks_move(state: State<AppState>, id: i64, status: String, sort_order: i64) -> AppResult<()> {
     let conn = lock(&state)?;
     move_task(&conn, id, &status, sort_order)
+}
+
+#[tauri::command]
+pub fn tasks_reorder(state: State<AppState>, project_id: i64, status: String, ids: Vec<i64>) -> AppResult<()> {
+    let conn = lock(&state)?;
+    reorder_tasks(&conn, project_id, &status, &ids)
 }
 
 #[tauri::command]
@@ -215,6 +240,28 @@ mod tests {
 
         delete_task(&conn, a.id).unwrap();
         assert_eq!(list_tasks(&conn, pid).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn reorder_moves_renumbers_and_sets_completed() {
+        let conn = mem();
+        let pid = project(&conn);
+        let a = create_task(&conn, pid, input("A", "todo")).unwrap();
+        let b = create_task(&conn, pid, input("B", "todo")).unwrap();
+        let c = create_task(&conn, pid, input("C", "todo")).unwrap();
+
+        // в колонке todo переставить порядок на C,A,B
+        reorder_tasks(&conn, pid, "todo", &[c.id, a.id, b.id]).unwrap();
+        let todo: Vec<i64> = list_tasks(&conn, pid).unwrap().into_iter()
+            .filter(|t| t.status == "todo").map(|t| t.id).collect();
+        assert_eq!(todo, vec![c.id, a.id, b.id]); // list сортирует по sort_order
+
+        // перенести A в done (выполненная колонка) — проставляется completed_at
+        reorder_tasks(&conn, pid, "done", &[a.id]).unwrap();
+        let at = list_tasks(&conn, pid).unwrap().into_iter().find(|t| t.id == a.id).unwrap();
+        assert_eq!(at.status, "done");
+        assert_eq!(at.sort_order, 0);
+        assert!(at.completed_at.is_some());
     }
 
     #[test]

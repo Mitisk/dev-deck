@@ -120,6 +120,7 @@ pub fn run() {
             commands::tasks::tasks_create,
             commands::tasks::tasks_update,
             commands::tasks::tasks_move,
+            commands::tasks::tasks_reorder,
             commands::tasks::tasks_delete,
             commands::tasks::tasks_agenda,
             commands::labels::labels_list,
