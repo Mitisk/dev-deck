@@ -152,7 +152,6 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .logo svg { width: 17px; height: 17px; }
 .wordmark { font-weight: 700; font-size: 15px; letter-spacing: -.2px; }
 .wordmark span { color: var(--muted); font-weight: 500; }
-.sb-head .ver { margin-left: auto; font-size: 11px; color: var(--muted-2); }
 
 .sb-search {
   margin: 2px 14px 10px;

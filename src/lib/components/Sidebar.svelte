@@ -32,7 +32,6 @@
   <div class="sb-head" role="button" tabindex="0" style="cursor:pointer" onclick={() => activeProjectId.set(null)}>
     <span class="logo"><Icon name="layout-grid" class="" /></span>
     <span class="wordmark">Dev<span>Deck</span></span>
-    <span class="ver">0.1</span>
   </div>
 
   <div class="sb-search" class:has-q={query}>
