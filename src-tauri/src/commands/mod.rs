@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod checklists;
+pub mod cmds;
 pub mod creds;
 pub mod files;
 pub mod git;
