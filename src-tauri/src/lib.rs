@@ -7,7 +7,17 @@ mod state;
 
 use state::AppState;
 use std::sync::Mutex;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
+use tauri::WindowEvent;
+
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,6 +31,45 @@ pub fn run() {
             let conn = db::open(&dir.join("devdeck.db"))
                 .map_err(|e| format!("db init failed: {}", e.message))?;
             app.manage(AppState { db: Mutex::new(conn) });
+
+            // --- системный трей ---
+            let open_i = MenuItem::with_id(app, "open", "Открыть DevDeck", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open_i, &quit_i])?;
+
+            let _tray = TrayIconBuilder::with_id("main-tray")
+                .icon(app.default_window_icon().expect("есть иконка окна").clone())
+                .tooltip("DevDeck")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => show_main(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    use tauri::tray::TrayIconEvent;
+                    if let TrayIconEvent::Click { button, button_state, .. } = event {
+                        if button == tauri::tray::MouseButton::Left
+                            && button_state == tauri::tray::MouseButtonState::Up
+                        {
+                            show_main(tray.app_handle());
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // --- закрытие окна = сворачивание в трей ---
+            if let Some(window) = app.get_webview_window("main") {
+                let w = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = w.hide();
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
