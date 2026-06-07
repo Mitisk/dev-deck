@@ -99,6 +99,7 @@ pub fn run() {
             commands::tasks::tasks_update,
             commands::tasks::tasks_move,
             commands::tasks::tasks_delete,
+            commands::tasks::tasks_agenda,
             commands::checklists::checklists_list,
             commands::checklists::checklists_create,
             commands::checklists::checklists_update,

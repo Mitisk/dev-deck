@@ -127,6 +127,38 @@ pub fn tasks_delete(state: State<AppState>, id: i64) -> AppResult<()> {
     delete_task(&conn, id)
 }
 
+fn agenda(conn: &Connection, today: &str) -> AppResult<Vec<crate::models::AgendaItem>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.project_id, p.name, p.color, t.id, t.title, t.due_date, t.priority
+         FROM tasks t JOIN projects p ON p.id = t.project_id
+         WHERE t.status != 'done'
+           AND t.due_date IS NOT NULL AND t.due_date != '' AND t.due_date <= ?1
+           AND p.status != 'archived'
+         ORDER BY t.due_date ASC, t.priority DESC
+         LIMIT 50",
+    )?;
+    let rows = stmt.query_map([today], |r| {
+        Ok(crate::models::AgendaItem {
+            project_id: r.get(0)?,
+            project_name: r.get(1)?,
+            project_color: r.get(2)?,
+            task_id: r.get(3)?,
+            title: r.get(4)?,
+            due_date: r.get(5)?,
+            priority: r.get(6)?,
+        })
+    })?;
+    let mut out = Vec::new();
+    for r in rows { out.push(r?); }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn tasks_agenda(state: State<AppState>, today: String) -> AppResult<Vec<crate::models::AgendaItem>> {
+    let conn = lock(&state)?;
+    agenda(&conn, &today)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,5 +207,21 @@ mod tests {
         create_task(&conn, pid, input("X", "todo")).unwrap();
         conn.execute("DELETE FROM projects WHERE id = ?1", [pid]).unwrap();
         assert_eq!(list_tasks(&conn, pid).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn agenda_returns_overdue_and_today_not_done() {
+        let conn = mem();
+        let pid = project(&conn);
+        // просрочена, сегодня, в будущем, выполнена-просрочена
+        conn.execute("INSERT INTO tasks(project_id,title,status,due_date,sort_order) VALUES(?1,'overdue','todo','2026-06-01',0)", [pid]).unwrap();
+        conn.execute("INSERT INTO tasks(project_id,title,status,due_date,sort_order) VALUES(?1,'today','doing','2026-06-07',1)", [pid]).unwrap();
+        conn.execute("INSERT INTO tasks(project_id,title,status,due_date,sort_order) VALUES(?1,'future','todo','2026-12-31',2)", [pid]).unwrap();
+        conn.execute("INSERT INTO tasks(project_id,title,status,due_date,sort_order) VALUES(?1,'done','done','2026-06-01',3)", [pid]).unwrap();
+        conn.execute("INSERT INTO tasks(project_id,title,status,due_date,sort_order) VALUES(?1,'nodate','todo','',4)", [pid]).unwrap();
+
+        let items = agenda(&conn, "2026-06-07").unwrap();
+        let titles: Vec<&str> = items.iter().map(|i| i.title.as_str()).collect();
+        assert_eq!(titles, vec!["overdue", "today"]); // future/done/nodate исключены, сортировка по дате
     }
 }

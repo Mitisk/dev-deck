@@ -238,3 +238,15 @@ pub struct CryptoStatus {
     pub mode: String, // "dpapi" | "master"
     pub locked: bool, // master && ключ не загружен
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgendaItem {
+    pub project_id: i64,
+    pub project_name: String,
+    pub project_color: Option<String>,
+    pub task_id: i64,
+    pub title: String,
+    pub due_date: String,
+    pub priority: i64,
+}
