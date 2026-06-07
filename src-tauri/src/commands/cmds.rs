@@ -2,13 +2,38 @@ use crate::error::{AppError, AppResult, ErrorKind};
 use crate::models::{CommandInput, ProjectCommand};
 use crate::state::AppState;
 use rusqlite::{params, Connection};
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader};
 use std::os::windows::process::CommandExt;
 use std::path::Path;
-use std::process::Command;
-use std::sync::MutexGuard;
-use tauri::State;
+use std::process::{Child, Command, Stdio};
+use std::sync::{Mutex, MutexGuard};
+use std::thread;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Реестр запущенных фоновых команд: id команды → OS pid дочернего процесса.
+#[derive(Default)]
+pub struct RunningState {
+    pub procs: Mutex<HashMap<i64, u32>>,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LogLine {
+    id: i64,
+    line: String,
+    err: bool,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExitInfo {
+    id: i64,
+    code: Option<i32>,
+}
 
 fn lock<'a>(state: &'a State<AppState>) -> AppResult<MutexGuard<'a, Connection>> {
     state.db.lock().map_err(|_| AppError::internal("db mutex poisoned"))
@@ -105,13 +130,10 @@ pub fn commands_delete(state: State<AppState>, id: i64) -> AppResult<()> {
     Ok(())
 }
 
-/// Запустить кастомную команду в новом окне терминала (cmd /K) в рабочей папке.
-/// Команда — это намеренно shell-строка, настроенная пользователем (раннер своих команд).
-#[tauri::command]
-pub fn command_run(state: State<AppState>, id: i64) -> AppResult<()> {
-    // достаём команду, рабочую папку и путь проекта (для фолбэка) под локом, затем отпускаем лок
+/// Достать (команда, рабочая папка с учётом фолбэка на путь проекта) под локом БД.
+fn fetch_command(state: &State<AppState>, id: i64) -> AppResult<(String, Option<String>)> {
     let (command, working_dir, project_path): (String, Option<String>, Option<String>) = {
-        let conn = lock(&state)?;
+        let conn = lock(state)?;
         conn.query_row(
             "SELECT c.command, c.working_dir, p.path
              FROM commands c JOIN projects p ON p.id = c.project_id
@@ -123,17 +145,24 @@ pub fn command_run(state: State<AppState>, id: i64) -> AppResult<()> {
     if command.trim().is_empty() {
         return Err(AppError { kind: ErrorKind::Validation, message: "Команда пуста".into() });
     }
-    // рабочая папка: working_dir, иначе путь проекта
-    let raw_dir = working_dir
+    let dir = working_dir
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .or(project_path.as_deref().map(str::trim).filter(|s| !s.is_empty()));
+        .or(project_path.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+        .map(|s| s.to_string());
+    Ok((command, dir))
+}
 
+/// Запустить кастомную команду в новом окне терминала (cmd /K) в рабочей папке.
+/// Команда — намеренно shell-строка пользователя (раннер своих команд).
+#[tauri::command]
+pub fn command_run(state: State<AppState>, id: i64) -> AppResult<()> {
+    let (command, dir) = fetch_command(&state, id)?;
     let mut cmd = Command::new("cmd");
     cmd.args(["/K", command.trim()]);
-    if let Some(d) = raw_dir {
-        let dir = expand(d);
+    if let Some(d) = dir {
+        let dir = expand(&d);
         if Path::new(&dir).is_dir() {
             cmd.current_dir(&dir);
         }
@@ -142,6 +171,105 @@ pub fn command_run(state: State<AppState>, id: i64) -> AppResult<()> {
     cmd.spawn()
         .map(|_| ())
         .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("Не удалось запустить команду: {}", e) })
+}
+
+/// Запустить команду в фоне: скрытый процесс, stdout/stderr стримятся событиями
+/// `cmd-log`, по завершении — `cmd-exit`. Идемпотентность по id: повторный запуск
+/// уже работающей команды отклоняется.
+#[tauri::command]
+pub fn command_run_bg(
+    state: State<AppState>,
+    running: State<RunningState>,
+    app: AppHandle,
+    id: i64,
+) -> AppResult<()> {
+    {
+        let map = running.procs.lock().map_err(|_| AppError::internal("proc mutex poisoned"))?;
+        if map.contains_key(&id) {
+            return Err(AppError { kind: ErrorKind::Validation, message: "Команда уже запущена".into() });
+        }
+    }
+    let (command, dir) = fetch_command(&state, id)?;
+
+    let mut cmd = Command::new("cmd");
+    cmd.args(["/C", command.trim()]);
+    if let Some(d) = dir {
+        let dir = expand(&d);
+        if Path::new(&dir).is_dir() {
+            cmd.current_dir(&dir);
+        }
+    }
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let mut child: Child = cmd
+        .spawn()
+        .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("Не удалось запустить команду: {}", e) })?;
+    let pid = child.id();
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    {
+        let mut map = running.procs.lock().map_err(|_| AppError::internal("proc mutex poisoned"))?;
+        map.insert(id, pid);
+    }
+
+    // поток чтения stderr
+    let app_err = app.clone();
+    let stderr_handle = thread::spawn(move || {
+        if let Some(out) = stderr {
+            let reader = BufReader::new(out);
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = app_err.emit("cmd-log", LogLine { id, line, err: true });
+            }
+        }
+    });
+
+    // поток-супервизор: читает stdout, ждёт stderr, reap, эмитит exit, чистит реестр
+    let app2 = app.clone();
+    thread::spawn(move || {
+        if let Some(out) = stdout {
+            let reader = BufReader::new(out);
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = app2.emit("cmd-log", LogLine { id, line, err: false });
+            }
+        }
+        let _ = stderr_handle.join();
+        let code = child.wait().ok().and_then(|s| s.code());
+        if let Ok(mut map) = app2.state::<RunningState>().procs.lock() {
+            map.remove(&id);
+        }
+        let _ = app2.emit("cmd-exit", ExitInfo { id, code });
+    });
+
+    Ok(())
+}
+
+/// Остановить фоновую команду: убить дерево процессов по pid (taskkill /T /F).
+#[tauri::command]
+pub fn command_stop(running: State<RunningState>, id: i64) -> AppResult<()> {
+    let pid = {
+        let map = running.procs.lock().map_err(|_| AppError::internal("proc mutex poisoned"))?;
+        map.get(&id).copied()
+    };
+    let Some(pid) = pid else {
+        return Err(AppError { kind: ErrorKind::NotFound, message: "Команда не запущена".into() });
+    };
+    Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("taskkill: {}", e) })?;
+    // запись из реестра уберёт поток-супервизор после закрытия пайпов
+    Ok(())
+}
+
+/// Список id запущенных фоновых команд (для восстановления состояния UI).
+#[tauri::command]
+pub fn command_running(running: State<RunningState>) -> AppResult<Vec<i64>> {
+    let map = running.procs.lock().map_err(|_| AppError::internal("proc mutex poisoned"))?;
+    Ok(map.keys().copied().collect())
 }
 
 #[cfg(test)]

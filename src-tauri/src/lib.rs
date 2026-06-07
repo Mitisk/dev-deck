@@ -38,6 +38,7 @@ pub fn run() {
             app.manage(AppState { db: Mutex::new(conn), master_key: Mutex::new(None) });
             app.manage(watch::WatchState::default());
             app.manage(tray::TrayState::default());
+            app.manage(commands::cmds::RunningState::default());
 
             // --- системный трей ---
             let menu = tray::build_menu(app.handle())?;
@@ -163,6 +164,9 @@ pub fn run() {
             commands::cmds::commands_update,
             commands::cmds::commands_delete,
             commands::cmds::command_run,
+            commands::cmds::command_run_bg,
+            commands::cmds::command_stop,
+            commands::cmds::command_running,
             commands::search::search_global,
             commands::backup::backup_now,
             commands::backup::backups_list,
