@@ -12,7 +12,19 @@ use tauri::{Manager, State};
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-struct ExportTask { title: String, description: Option<String>, status: String, priority: i64, due_date: Option<String>, sort_order: i64 }
+struct ExportColumn { key: String, name: String, is_done: bool, sort_order: i64 }
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ExportLabel { name: String, color: Option<String>, sort_order: i64 }
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ExportTask {
+    title: String, description: Option<String>, status: String, priority: i64, due_date: Option<String>, sort_order: i64,
+    #[serde(default)]
+    labels: Vec<String>,
+}
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -53,6 +65,10 @@ struct ExportProject {
     name: String, description: Option<String>, status: String, color: Option<String>,
     icon: Option<String>, path: Option<String>, repo_path: Option<String>, pinned: bool, sort_order: i64,
     tags: Vec<String>,
+    #[serde(default)]
+    columns: Vec<ExportColumn>,
+    #[serde(default)]
+    labels: Vec<ExportLabel>,
     tasks: Vec<ExportTask>, checklists: Vec<ExportChecklist>, notes: Vec<ExportNote>,
     links: Vec<ExportLink>, files: Vec<ExportFile>, commands: Vec<ExportCommand>, creds: Vec<ExportCred>,
 }
@@ -89,8 +105,19 @@ fn build_export(
 
     for (id, name, description, status, color, icon, path, repo_path, pinned, sort_order) in prows {
         let tags = col(conn, "SELECT t.name FROM tags t JOIN project_tags pt ON pt.tag_id=t.id WHERE pt.project_id=?1 ORDER BY t.name", id, |r| r.get::<_, String>(0))?;
-        let tasks = col(conn, "SELECT title,description,status,priority,due_date,sort_order FROM tasks WHERE project_id=?1 ORDER BY sort_order,id", id,
-            |r| Ok(ExportTask { title: r.get(0)?, description: r.get(1)?, status: r.get(2)?, priority: r.get(3)?, due_date: r.get(4)?, sort_order: r.get(5)? }))?;
+        let columns = col(conn, "SELECT key,name,is_done,sort_order FROM task_columns WHERE project_id=?1 ORDER BY sort_order,id", id,
+            |r| Ok(ExportColumn { key: r.get(0)?, name: r.get(1)?, is_done: r.get::<_, i64>(2)? != 0, sort_order: r.get(3)? }))?;
+        let proj_labels = col(conn, "SELECT name,color,sort_order FROM labels WHERE project_id=?1 ORDER BY sort_order,id", id,
+            |r| Ok(ExportLabel { name: r.get(0)?, color: r.get(1)?, sort_order: r.get(2)? }))?;
+        let task_rows = col(conn, "SELECT id,title,description,status,priority,due_date,sort_order FROM tasks WHERE project_id=?1 ORDER BY sort_order,id", id,
+            |r| Ok((r.get::<_, i64>(0)?, ExportTask {
+                title: r.get(1)?, description: r.get(2)?, status: r.get(3)?, priority: r.get(4)?, due_date: r.get(5)?, sort_order: r.get(6)?, labels: Vec::new(),
+            })))?;
+        let mut tasks = Vec::new();
+        for (tid, mut t) in task_rows {
+            t.labels = col(conn, "SELECT l.name FROM labels l JOIN task_labels tl ON tl.label_id=l.id WHERE tl.task_id=?1", tid, |r| r.get::<_, String>(0))?;
+            tasks.push(t);
+        }
         let mut checklists = Vec::new();
         let cls = col(conn, "SELECT id,title,sort_order FROM checklists WHERE project_id=?1 ORDER BY sort_order,id", id, |r| Ok((r.get::<_,i64>(0)?, r.get::<_,String>(1)?, r.get::<_,i64>(2)?)))?;
         for (cid, ctitle, csort) in cls {
@@ -121,7 +148,7 @@ fn build_export(
 
         projects.push(ExportProject {
             name, description, status, color, icon, path, repo_path, pinned: pinned != 0, sort_order,
-            tags, tasks, checklists, notes, links, files, commands, creds,
+            tags, columns, labels: proj_labels, tasks, checklists, notes, links, files, commands, creds,
         });
     }
 
@@ -144,7 +171,20 @@ fn import_doc(
             params![p.name, p.description, p.status, p.color, p.icon, p.path, p.repo_path, p.pinned as i64, p.sort_order],
         )?;
         let pid = conn.last_insert_rowid();
-        crate::commands::columns::seed_default_columns(conn, pid)?;
+        if p.columns.is_empty() {
+            crate::commands::columns::seed_default_columns(conn, pid)?;
+        } else {
+            for c in &p.columns {
+                conn.execute("INSERT OR IGNORE INTO task_columns(project_id,key,name,is_done,sort_order) VALUES(?1,?2,?3,?4,?5)",
+                    params![pid, c.key, c.name, c.is_done as i64, c.sort_order])?;
+            }
+        }
+
+        let mut label_map: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        for l in &p.labels {
+            conn.execute("INSERT INTO labels(project_id,name,color,sort_order) VALUES(?1,?2,?3,?4)", params![pid, l.name, l.color, l.sort_order])?;
+            label_map.insert(l.name.clone(), conn.last_insert_rowid());
+        }
 
         for tag in &p.tags {
             conn.execute("INSERT OR IGNORE INTO tags(name) VALUES(?1)", [tag])?;
@@ -154,6 +194,12 @@ fn import_doc(
         for t in &p.tasks {
             conn.execute("INSERT INTO tasks(project_id,title,description,status,priority,due_date,sort_order) VALUES(?1,?2,?3,?4,?5,?6,?7)",
                 params![pid, t.title, t.description, t.status, t.priority, t.due_date, t.sort_order])?;
+            let tid = conn.last_insert_rowid();
+            for lname in &t.labels {
+                if let Some(lid) = label_map.get(lname) {
+                    conn.execute("INSERT OR IGNORE INTO task_labels(task_id,label_id) VALUES(?1,?2)", params![tid, lid])?;
+                }
+            }
         }
         for c in &p.checklists {
             conn.execute("INSERT INTO checklists(project_id,title,sort_order) VALUES(?1,?2,?3)", params![pid, c.title, c.sort_order])?;
@@ -243,6 +289,14 @@ mod tests {
         let blob = crypto::encrypt(b"shh").unwrap();
         src.execute("INSERT INTO credentials(project_id,label,type,secret_encrypted,sort_order) VALUES(?1,'Stripe','api_key',?2,0)", params![pid, blob]).unwrap();
 
+        // кастомная колонка + метка + связь
+        src.execute("INSERT INTO task_columns(project_id,key,name,is_done,sort_order) VALUES(?1,'review','Review',0,5)", [pid]).unwrap();
+        src.execute("INSERT INTO labels(project_id,name,color,sort_order) VALUES(?1,'bug','#f00',0)", [pid]).unwrap();
+        let lid = src.last_insert_rowid();
+        // привязать к существующей задаче T1
+        let t1: i64 = src.query_row("SELECT id FROM tasks WHERE title='T1'", [], |r| r.get(0)).unwrap();
+        src.execute("INSERT INTO task_labels(task_id,label_id) VALUES(?1,?2)", params![t1, lid]).unwrap();
+
         let doc = build_export(&src, &Mutex::new(None), true).unwrap();
         assert_eq!(doc.projects.len(), 1);
         assert_eq!(doc.projects[0].creds[0].secret.as_deref(), Some("shh"));
@@ -258,6 +312,13 @@ mod tests {
         // секрет заново зашифрован и расшифровывается
         let stored: Vec<u8> = dst.query_row("SELECT secret_encrypted FROM credentials", [], |r| r.get(0)).unwrap();
         assert_eq!(String::from_utf8_lossy(&crypto::decrypt(&stored).unwrap()), "shh");
+
+        let cols: i64 = dst.query_row("SELECT count(*) FROM task_columns WHERE key='review'", [], |r| r.get(0)).unwrap();
+        assert_eq!(cols, 1);
+        let lbls: i64 = dst.query_row("SELECT count(*) FROM labels WHERE name='bug'", [], |r| r.get(0)).unwrap();
+        assert_eq!(lbls, 1);
+        let linked: i64 = dst.query_row("SELECT count(*) FROM task_labels", [], |r| r.get(0)).unwrap();
+        assert_eq!(linked, 1);
     }
 
     #[test]
