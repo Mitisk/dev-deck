@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { Project, Task, TaskColumn } from "$lib/types";
+  import type { Project, Task, TaskColumn, Label } from "$lib/types";
   import * as tasksApi from "$lib/api/tasks";
   import * as columnsApi from "$lib/api/columns";
+  import * as labelsApi from "$lib/api/labels";
   import { pushToast } from "$lib/stores/toasts";
   import Icon from "./Icon.svelte";
 
@@ -13,12 +14,22 @@
     { label: "Высокий", color: "#f0616d" },
   ];
 
+  const LABEL_COLORS = ["#7c7dff","#c77dff","#3fb863","#e0a83a","#f0616d","#5b9cff","#19c3c0","#ff8b5b"];
+
   let columns = $state<TaskColumn[]>([]);
   let tasks = $state<Task[]>([]);
   let adding = $state<Record<string, string>>({});
   let dragId = $state<number | null>(null);
   let dragging = $state(false);
   let overCol = $state<string | null>(null);
+
+  // метки
+  let labels = $state<Label[]>([]);
+  let activeLabels = $state<number[]>([]);
+  // менеджер меток
+  let showLabels = $state(false);
+  let newLabelName = $state("");
+  let newLabelColor = $state(LABEL_COLORS[0]);
 
   // edit task dialog
   let editing = $state<Task | null>(null);
@@ -27,6 +38,8 @@
   let ePriority = $state(0);
   let eDue = $state("");
   let eStatus = $state("");
+  // выбор меток в edit-диалоге
+  let eLabels = $state<number[]>([]);
 
   // column dialog
   let colEditing = $state<TaskColumn | null>(null);
@@ -38,14 +51,41 @@
   async function load() {
     const my = ++reqId;
     try {
-      const [cols, ts] = await Promise.all([columnsApi.list(project.id), tasksApi.list(project.id)]);
-      if (my === reqId) { columns = cols; tasks = ts; }
+      const [cols, ts, lbs] = await Promise.all([columnsApi.list(project.id), tasksApi.list(project.id), labelsApi.list(project.id)]);
+      if (my === reqId) { columns = cols; tasks = ts; labels = lbs; }
     } catch { /* тост из api/client.ts */ }
   }
   $effect(() => { project.id; load(); });
 
   function colTasks(key: string): Task[] {
     return tasks.filter((t) => t.status === key).sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  function labelById(id: number): Label | undefined { return labels.find((l) => l.id === id); }
+  function taskLabels(t: Task): Label[] { return t.labelIds.map(labelById).filter((l): l is Label => !!l); }
+  function toggleFilter(id: number) {
+    activeLabels = activeLabels.includes(id) ? activeLabels.filter((x) => x !== id) : [...activeLabels, id];
+  }
+  // задачи колонки с учётом фильтра
+  function visibleColTasks(key: string): Task[] {
+    const list = colTasks(key);
+    if (!activeLabels.length) return list;
+    return list.filter((t) => t.labelIds.some((id) => activeLabels.includes(id)));
+  }
+
+  async function addLabel() {
+    if (!newLabelName.trim()) return;
+    await labelsApi.create(project.id, newLabelName.trim(), newLabelColor);
+    newLabelName = "";
+    await load();
+  }
+  async function deleteLabel(id: number) {
+    activeLabels = activeLabels.filter((x) => x !== id);
+    await labelsApi.remove(id);
+    await load();
+  }
+  function toggleEditLabel(id: number) {
+    eLabels = eLabels.includes(id) ? eLabels.filter((x) => x !== id) : [...eLabels, id];
   }
 
   function todayStr(): string {
@@ -82,11 +122,13 @@
   function openEdit(t: Task) {
     if (dragging) return;
     editing = t; eTitle = t.title; eDesc = t.description ?? ""; ePriority = t.priority; eDue = t.dueDate ?? ""; eStatus = t.status;
+    eLabels = [...t.labelIds];
   }
   async function saveEdit() {
     if (!editing) return;
     if (!eTitle.trim()) return;
     await tasksApi.update(editing.id, { title: eTitle.trim(), description: eDesc.trim() || null, priority: ePriority, dueDate: eDue.trim() || null, status: eStatus });
+    await labelsApi.setTaskLabels(editing.id, eLabels);
     editing = null; await load();
   }
   async function deleteTask() {
@@ -110,8 +152,14 @@
   }
 </script>
 
-<div style="display:flex;align-items:center;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+  {#each labels as l (l.id)}
+    <button class="chip" style="cursor:pointer;border-color:{l.color ?? 'var(--border-2)'};{activeLabels.includes(l.id) ? `background:color-mix(in oklab, ${l.color ?? 'var(--accent)'} 22%, transparent);color:var(--text)` : ''}"
+            onclick={() => toggleFilter(l.id)}>{l.name}</button>
+  {/each}
+  {#if activeLabels.length}<button class="chip" onclick={() => (activeLabels = [])}>сбросить</button>{/if}
   <span style="flex:1"></span>
+  <button class="gbtn" onclick={() => (showLabels = true)}><Icon name="tag" class="ic-sm" /> Метки</button>
   <button class="gbtn" onclick={openNewCol}><Icon name="plus" class="ic-sm" /> Колонка</button>
 </div>
 
@@ -124,11 +172,11 @@
       <div class="col-head">
         <span class="led" style="background:{c.isDone ? '#3fb863' : 'var(--accent)'}"></span>
         <span class="h">{c.name}</span>
-        <span class="n">{colTasks(c.key).length}</span>
+        <span class="n">{visibleColTasks(c.key).length}</span>
         <button class="mini" title="Настроить колонку" style="margin-left:auto" onclick={() => openEditCol(c)}><Icon name="ellipsis" class="ic-sm" /></button>
       </div>
       <div class="col-body">
-        {#each colTasks(c.key) as t (t.id)}
+        {#each visibleColTasks(c.key) as t (t.id)}
           <div class="tcard" class:dragging={dragId === t.id} draggable={true} role="button" tabindex="0"
                ondragstart={() => { dragId = t.id; dragging = true; }}
                ondragend={() => { dragging = false; setTimeout(() => (dragId = null), 0); }}
@@ -137,6 +185,7 @@
             <div class="row">
               <span class="tag-pri" style="color:{PRIORITY[t.priority].color};background:color-mix(in oklab, {PRIORITY[t.priority].color} 14%, transparent)">{PRIORITY[t.priority].label}</span>
               {#if t.dueDate}<span class="due" style={isOverdue(t.dueDate) ? "color:var(--danger)" : ""}><Icon name="calendar" class="ic-sm" /> {fmtDue(t.dueDate)}</span>{/if}
+              {#each taskLabels(t) as l}<span class="chip" style="border-color:{l.color ?? 'var(--border-2)'};color:{l.color ?? 'var(--muted)'}">{l.name}</span>{/each}
             </div>
           </div>
         {/each}
@@ -167,6 +216,16 @@
             </select></div>
         </div>
         <div class="field"><label for="et-due">Срок</label><input id="et-due" class="tin" type="date" bind:value={eDue} /></div>
+        <div class="field">
+          <label>Метки</label>
+          <div class="chips">
+            {#each labels as l}
+              <button class="chip" style="cursor:pointer;border-color:{l.color ?? 'var(--border-2)'};{eLabels.includes(l.id) ? `background:color-mix(in oklab, ${l.color ?? 'var(--accent)'} 22%, transparent);color:var(--text)` : ''}"
+                      onclick={() => toggleEditLabel(l.id)}>{l.name}</button>
+            {/each}
+            {#if !labels.length}<span style="color:var(--muted-2);font-size:12px">Меток нет — создайте через «Метки».</span>{/if}
+          </div>
+        </div>
       </div>
       <div class="modal-foot">
         <button class="btn-danger" onclick={deleteTask}><Icon name="trash-2" class="ic-sm" /> Удалить</button>
@@ -198,6 +257,34 @@
         <button class="btn-ghost" onclick={() => (colEditing = null)}>Отмена</button>
         <button class="btn-primary" onclick={saveCol}><Icon name="check" class="ic ic-sm" /> Сохранить</button>
       </div>
+    </div>
+  </div>
+{/if}
+
+{#if showLabels}
+  <div class="modal-scrim open" role="dialog" tabindex="-1" aria-label="Метки"
+       onmousedown={(e) => { if (e.currentTarget === e.target) (showLabels = false); }}
+       onkeydown={(e) => { if (e.key === 'Escape') (showLabels = false); }}>
+    <div class="modal" style="max-width:440px">
+      <div class="modal-head"><span class="t">Метки проекта</span>
+        <button class="icon-btn x" onclick={() => (showLabels = false)}><Icon name="x" class="ic" /></button></div>
+      <div class="modal-body">
+        {#each labels as l (l.id)}
+          <div class="link-row" style="padding:6px 4px">
+            <span class="chip" style="border-color:{l.color ?? 'var(--border-2)'};color:{l.color ?? 'var(--muted)'}">{l.name}</span>
+            <span style="flex:1"></span>
+            <button class="mini" title="Удалить" onclick={() => deleteLabel(l.id)}><Icon name="trash-2" class="ic-sm" /></button>
+          </div>
+        {/each}
+        <div class="erow" style="margin-top:8px">
+          <input class="tin" placeholder="Новая метка" bind:value={newLabelName} onkeydown={(e) => { if (e.key === 'Enter') addLabel(); }} />
+          <div class="set-pick-color">
+            {#each LABEL_COLORS as c}<button class="color-pick" class:sel={newLabelColor === c} style="--c:{c};background:{c}" onclick={() => (newLabelColor = c)} aria-label="цвет"></button>{/each}
+          </div>
+          <button class="er-del" style="color:var(--accent)" title="Добавить" onclick={addLabel}><Icon name="plus" class="ic-sm" /></button>
+        </div>
+      </div>
+      <div class="modal-foot"><span class="spacer"></span><button class="btn-ghost" onclick={() => (showLabels = false)}>Закрыть</button></div>
     </div>
   </div>
 {/if}
