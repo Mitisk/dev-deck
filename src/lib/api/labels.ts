@@ -6,3 +6,4 @@ export const create = (projectId: number, name: string, color: string | null) =>
 export const update = (id: number, name: string, color: string | null) => call<Label>("label_update", { id, name, color });
 export const remove = (id: number) => call<void>("label_delete", { id });
 export const setTaskLabels = (taskId: number, labelIds: number[]) => call<void>("task_set_labels", { taskId, labelIds });
+export const reorder = (projectId: number, ids: number[]) => call<void>("labels_reorder", { projectId, ids });

@@ -22,6 +22,8 @@
   let dragId = $state<number | null>(null);
   let dragging = $state(false);
   let overCol = $state<string | null>(null);
+  let colDragKey = $state<string | null>(null);
+  let lblDragId = $state<number | null>(null);
 
   // метки
   let labels = $state<Label[]>([]);
@@ -89,6 +91,17 @@
     await labelsApi.remove(id);
     await load();
   }
+  async function dropLabel(targetId: number) {
+    const from = lblDragId;
+    lblDragId = null;
+    if (from == null || from === targetId) return;
+    const order = labels.map((l) => l.id);
+    const fi = order.indexOf(from), ti = order.indexOf(targetId);
+    if (fi < 0 || ti < 0) return;
+    order.splice(ti, 0, ...order.splice(fi, 1));
+    await labelsApi.reorder(project.id, order);
+    await load();
+  }
   function toggleEditLabel(id: number) {
     eLabels = eLabels.includes(id) ? eLabels.filter((x) => x !== id) : [...eLabels, id];
   }
@@ -114,6 +127,22 @@
     await load();
   }
   async function onDrop(key: string) {
+    if (colDragKey) {
+      const from = colDragKey;
+      colDragKey = null;
+      overCol = null;
+      if (from === key) return;
+      const order = columns.map((c) => c.key);
+      const fi = order.indexOf(from), ti = order.indexOf(key);
+      if (fi < 0 || ti < 0) return;
+      order.splice(ti, 0, ...order.splice(fi, 1));
+      const ids = order
+        .map((k) => columns.find((c) => c.key === k)?.id)
+        .filter((x): x is number => x != null);
+      await columnsApi.reorder(project.id, ids);
+      await load();
+      return;
+    }
     overCol = null;
     const id = dragId;
     if (id == null) return;
@@ -175,10 +204,13 @@
 <div class="kanban" style="grid-template-columns:repeat({Math.max(columns.length, 1)}, 1fr)">
   {#each columns as c (c.id)}
     <div class="col" class:drag-over={overCol === c.key} role="list"
-         ondragover={(e) => { e.preventDefault(); overCol = c.key; }}
+         ondragover={(e) => { e.preventDefault(); if (!colDragKey) overCol = c.key; }}
          ondragleave={() => { if (overCol === c.key) overCol = null; }}
          ondrop={() => onDrop(c.key)}>
-      <div class="col-head">
+      <div class="col-head" draggable={true} style="cursor:grab" title="Перетащите, чтобы изменить порядок"
+           ondragstart={() => { colDragKey = c.key; }}
+           ondragend={() => { colDragKey = null; }}>
+        <Icon name="grip-vertical" class="ic-sm" />
         <span class="led" style="background:{c.isDone ? '#3fb863' : 'var(--accent)'}"></span>
         <span class="h">{c.name}</span>
         <span class="n">{visibleColTasks(c.key).length}</span>
@@ -279,7 +311,11 @@
         <button class="icon-btn x" onclick={() => (showLabels = false)}><Icon name="x" class="ic" /></button></div>
       <div class="modal-body">
         {#each labels as l (l.id)}
-          <div class="link-row" style="padding:6px 4px">
+          <div class="link-row" style="padding:6px 4px;cursor:grab" draggable={true}
+               ondragstart={() => { lblDragId = l.id; }}
+               ondragend={() => { lblDragId = null; }}
+               ondragover={(e) => e.preventDefault()}
+               ondrop={() => dropLabel(l.id)}>
             <span class="chip" style="border-color:{l.color ?? 'var(--border-2)'};color:{l.color ?? 'var(--muted)'}">{l.name}</span>
             <span style="flex:1"></span>
             <button class="mini" title="Удалить" onclick={() => deleteLabel(l.id)}><Icon name="trash-2" class="ic-sm" /></button>
