@@ -94,9 +94,11 @@
   }
   function hsClass(r: HealthResult | undefined): string {
     if (!r) return "";
-    if (r.ok) return "up";
-    if (r.reachable) return "warn";
-    return "down";
+    if (!r.reachable) return "down";
+    if (!r.ok) return "warn";
+    // отвечает 2xx, но какая-то зависимость упала → деградация
+    if (r.components?.some((c) => c.state === "down")) return "warn";
+    return "up";
   }
   function latColor(ms: number): string {
     return ms < 300 ? "var(--git-ahead)" : ms < 900 ? "var(--git-dirty)" : "var(--danger)";
@@ -132,7 +134,15 @@
             <span class="att-be" style="--p-color:{p.color ?? 'var(--accent)'};width:30px;height:30px;font-size:15px"><ProjectIcon icon={p.icon} size={18} /></span>
             <div class="hs-main">
               <div class="hs-name">{p.name}{#if r?.detail}<span class="hs-detail">· {r.detail}</span>{/if}</div>
-              <div class="hs-url">{p.healthUrl}</div>
+              {#if r?.components?.length}
+                <div class="hs-comps">
+                  {#each r.components as c}
+                    <span class="hs-comp {c.state}" title="{c.name}: {c.label}">{c.name}</span>
+                  {/each}
+                </div>
+              {:else}
+                <div class="hs-url">{p.healthUrl}</div>
+              {/if}
             </div>
             <div class="hs-spark">
               {#each (latHist[p.id] ?? []) as ms}
