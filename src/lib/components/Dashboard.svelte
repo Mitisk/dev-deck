@@ -8,7 +8,7 @@
   import * as actions from "$lib/api/actions";
   import * as git from "$lib/api/git";
   import { pushToast } from "$lib/stores/toasts";
-  import type { AttentionItem } from "$lib/types";
+  import type { AttentionItem, AgendaItem } from "$lib/types";
   import Icon from "./Icon.svelte";
 
   const visible = $derived($projects.filter((p) => p.status !== "archived"));
@@ -18,6 +18,16 @@
   );
 
   let attention = $state<AttentionItem[]>([]);
+  let agenda = $state<AgendaItem[]>([]);
+  function todayStr(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function fmtDue(due: string): string {
+    const d = new Date(due + "T00:00:00");
+    return isNaN(d.getTime()) ? due : d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  }
+  function overdue(due: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(due) && due < todayStr(); }
   async function loadAttention() {
     try {
       attention = await dash.attention();
@@ -25,10 +35,14 @@
       /* тост из api/client.ts */
     }
   }
+  async function loadAgenda() {
+    try { agenda = await dash.agenda(todayStr()); } catch { /* */ }
+  }
   $effect(() => {
     // перезагружать при изменении набора проектов
     void $projects.length;
     loadAttention();
+    loadAgenda();
   });
 
   function open(id: number) {
@@ -99,6 +113,26 @@
             </div>
           </div>
         {/each}
+      </div>
+    {/if}
+
+    {#if agenda.length}
+      <div style="margin-top:26px">
+        <h3 class="section-title"><Icon name="calendar-clock" class="ic-sm" /> Задачи на сегодня и просроченные</h3>
+        <div class="card att-card">
+          {#each agenda as a (a.taskId)}
+            <div class="att-row" role="button" tabindex="0" onclick={() => open(a.projectId)}>
+              <span class="att-be" style="--p-color:{a.projectColor ?? 'var(--accent)'}"><Icon name="square-check-big" class="ic-sm" /></span>
+              <div class="att-main">
+                <div class="att-line">
+                  <span class="att-name">{a.title}</span>
+                  <span class="att-branch">{a.projectName}</span>
+                </div>
+              </div>
+              <span class="att-tag {overdue(a.dueDate) ? 'dirty' : 'ahead'}">{fmtDue(a.dueDate)}</span>
+            </div>
+          {/each}
+        </div>
       </div>
     {/if}
 

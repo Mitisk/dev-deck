@@ -124,3 +124,13 @@ export type ImportSummary = { projects: number };
 export type ChecklistTemplate = { id: number; name: string; items: string[] };
 
 export type CryptoStatus = { mode: "dpapi" | "master"; locked: boolean };
+
+export type AgendaItem = {
+  projectId: number;
+  projectName: string;
+  projectColor: string | null;
+  taskId: number;
+  title: string;
+  dueDate: string;
+  priority: number;
+};

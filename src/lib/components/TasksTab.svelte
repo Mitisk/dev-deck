@@ -49,6 +49,20 @@
     return tasks.filter((t) => t.status === status).sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
+  function todayStr(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function fmtDue(due: string | null): string {
+    if (!due) return "";
+    const d = new Date(due + "T00:00:00");
+    if (isNaN(d.getTime())) return due; // не ISO — показать как есть
+    return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  }
+  function isOverdue(due: string | null): boolean {
+    return !!due && /^\d{4}-\d{2}-\d{2}$/.test(due) && due < todayStr();
+  }
+
   async function quickAdd(status: TaskStatus) {
     const title = (adding[status] ?? "").trim();
     if (!title) return;
@@ -134,7 +148,7 @@
               <span class="tag-pri" style="color:{PRIORITY[t.priority].color};background:color-mix(in oklab, {PRIORITY[t.priority].color} 14%, transparent)">
                 {PRIORITY[t.priority].label}
               </span>
-              {#if t.dueDate}<span class="due"><Icon name="calendar" class="ic-sm" /> {t.dueDate}</span>{/if}
+              {#if t.dueDate}<span class="due" style={isOverdue(t.dueDate) ? "color:var(--danger)" : ""}><Icon name="calendar" class="ic-sm" /> {fmtDue(t.dueDate)}</span>{/if}
             </div>
           </div>
         {/each}
@@ -192,7 +206,7 @@
         </div>
         <div class="field">
           <label for="et-due">Срок</label>
-          <input id="et-due" class="tin" bind:value={eDue} placeholder="напр. 5 июн" />
+          <input id="et-due" class="tin" type="date" bind:value={eDue} />
         </div>
       </div>
       <div class="modal-foot">
