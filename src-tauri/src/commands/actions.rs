@@ -105,6 +105,29 @@ pub fn open_url(app: tauri::AppHandle, url: String) -> AppResult<()> {
         .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("Не удалось открыть ссылку: {}", e) })
 }
 
+/// Открыть файл/папку-ярлык ассоциированной программой (файл) или в проводнике (папка)
+/// через системный обработчик opener — без shell.
+#[tauri::command]
+pub fn open_shortcut(app: tauri::AppHandle, path: String) -> AppResult<()> {
+    let p = require_dir_or_file(&path)?;
+    app.opener()
+        .open_path(p, None::<&str>)
+        .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("Не удалось открыть: {}", e) })
+}
+
+/// Раскрыть путь и убедиться, что это существующий файл ИЛИ папка
+/// (`require_dir` проверяет только папку, поэтому отдельный хелпер).
+fn require_dir_or_file(path: &str) -> AppResult<String> {
+    let p = expand_path(path);
+    if p.is_empty() {
+        return Err(AppError { kind: ErrorKind::Validation, message: "Путь не задан".into() });
+    }
+    if !Path::new(&p).exists() {
+        return Err(AppError { kind: ErrorKind::NotFound, message: format!("Не найдено: {}", p) });
+    }
+    Ok(p)
+}
+
 #[cfg(test)]
 mod tests {
     use super::expand_path;

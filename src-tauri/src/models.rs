@@ -140,3 +140,24 @@ pub struct Note {
     pub content_md: Option<String>,
     pub updated_at: String,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Link {
+    pub id: i64,
+    pub project_id: i64,
+    pub label: String,
+    pub url: String,
+    pub icon: Option<String>,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileShortcut {
+    pub id: i64,
+    pub project_id: i64,
+    pub label: String,
+    pub path: String,
+    pub sort_order: i64,
+}

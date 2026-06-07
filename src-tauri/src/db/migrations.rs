@@ -5,6 +5,7 @@ use rusqlite::Connection;
 /// текущий user_version меньше.
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../../migrations/0001_init.sql")),
+    (2, include_str!("../../migrations/0002_files.sql")),
 ];
 
 /// Применяет все миграции с номером выше текущего user_version.
@@ -32,7 +33,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         assert_eq!(schema_version(&conn).unwrap(), 0);
         run(&conn).unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 1);
+        assert_eq!(schema_version(&conn).unwrap(), 2);
         let count: i64 = conn
             .query_row(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='projects'",
@@ -41,6 +42,14 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 1);
+        let files: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='files'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(files, 1);
     }
 
     #[test]
@@ -48,6 +57,6 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         run(&conn).unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 1);
+        assert_eq!(schema_version(&conn).unwrap(), 2);
     }
 }

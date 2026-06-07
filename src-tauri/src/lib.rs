@@ -64,6 +64,15 @@ pub fn run() {
             commands::notes::notes_create,
             commands::notes::notes_update,
             commands::notes::notes_delete,
+            commands::links::links_list,
+            commands::links::links_create,
+            commands::links::links_update,
+            commands::links::links_delete,
+            commands::files::files_list,
+            commands::files::files_create,
+            commands::files::files_update,
+            commands::files::files_delete,
+            commands::actions::open_shortcut,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
