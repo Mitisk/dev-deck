@@ -26,6 +26,7 @@
   // метки
   let labels = $state<Label[]>([]);
   let activeLabels = $state<number[]>([]);
+  let activePriorities = $state<number[]>([]);
   // менеджер меток
   let showLabels = $state(false);
   let newLabelName = $state("");
@@ -66,11 +67,15 @@
   function toggleFilter(id: number) {
     activeLabels = activeLabels.includes(id) ? activeLabels.filter((x) => x !== id) : [...activeLabels, id];
   }
+  function togglePri(p: number) {
+    activePriorities = activePriorities.includes(p) ? activePriorities.filter((x) => x !== p) : [...activePriorities, p];
+  }
   // задачи колонки с учётом фильтра
   function visibleColTasks(key: string): Task[] {
-    const list = colTasks(key);
-    if (!activeLabels.length) return list;
-    return list.filter((t) => t.labelIds.some((id) => activeLabels.includes(id)));
+    let list = colTasks(key);
+    if (activeLabels.length) list = list.filter((t) => t.labelIds.some((id) => activeLabels.includes(id)));
+    if (activePriorities.length) list = list.filter((t) => activePriorities.includes(t.priority));
+    return list;
   }
 
   async function addLabel() {
@@ -157,7 +162,11 @@
     <button class="chip" style="cursor:pointer;border-color:{l.color ?? 'var(--border-2)'};{activeLabels.includes(l.id) ? `background:color-mix(in oklab, ${l.color ?? 'var(--accent)'} 22%, transparent);color:var(--text)` : ''}"
             onclick={() => toggleFilter(l.id)}>{l.name}</button>
   {/each}
-  {#if activeLabels.length}<button class="chip" onclick={() => (activeLabels = [])}>сбросить</button>{/if}
+  {#each PRIORITY as p, i}
+    <button class="chip" style="cursor:pointer;border-color:{p.color};{activePriorities.includes(i) ? `background:color-mix(in oklab, ${p.color} 22%, transparent);color:var(--text)` : ''}"
+            onclick={() => togglePri(i)}>{p.label}</button>
+  {/each}
+  {#if activeLabels.length || activePriorities.length}<button class="chip" onclick={() => { activeLabels = []; activePriorities = []; }}>сбросить</button>{/if}
   <span style="flex:1"></span>
   <button class="gbtn" onclick={() => (showLabels = true)}><Icon name="tag" class="ic-sm" /> Метки</button>
   <button class="gbtn" onclick={openNewCol}><Icon name="plus" class="ic-sm" /> Колонка</button>

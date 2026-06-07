@@ -46,6 +46,15 @@
   }
   async function lockMaster() { await security.lock(); await refreshCrypto(); pushToast("Заблокировано", "", "info"); }
 
+  let chOld = $state("");
+  let chNew = $state("");
+  async function changeMaster() {
+    if (chNew.length < 4) { pushToast("Пароль короткий", "минимум 4 символа", "error"); return; }
+    busy = true;
+    try { await security.change(chOld, chNew); chOld = ""; chNew = ""; pushToast("Пароль изменён", "секреты перешифрованы", "ok"); }
+    finally { busy = false; }
+  }
+
   async function doBackup() {
     busy = true;
     try { const p = await backup.backupNow(); pushToast("Бэкап создан", p, "ok"); await refreshBackups(); }
@@ -104,6 +113,11 @@
               <div style="display:flex;gap:6px;align-items:center">
                 <input class="tin" type="password" placeholder="Текущий пароль" bind:value={pwd} />
                 <button class="btn-danger" disabled={busy} onclick={disableMaster}>Выключить мастер-пароль</button>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+                <input class="tin" type="password" placeholder="Старый пароль" bind:value={chOld} />
+                <input class="tin" type="password" placeholder="Новый пароль" bind:value={chNew} />
+                <button class="btn-ghost" disabled={busy} onclick={changeMaster}><Icon name="key-round" class="ic-sm" /> Сменить</button>
               </div>
             </div>
           {/if}
