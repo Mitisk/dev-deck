@@ -7,6 +7,9 @@
   import * as dash from "$lib/api/dashboard";
   import * as actions from "$lib/api/actions";
   import * as git from "$lib/api/git";
+  import * as monitor from "$lib/api/monitor";
+  import type { HealthResult } from "$lib/api/monitor";
+  import { onMount, onDestroy } from "svelte";
   import { pushToast } from "$lib/stores/toasts";
   import type { AttentionItem, AgendaItem } from "$lib/types";
   import Icon from "./Icon.svelte";
@@ -69,6 +72,42 @@
     const p = visible.find((x) => x.id === id);
     return p?.path ?? null;
   }
+
+  const healthProjects = $derived(visible.filter((p) => p.healthUrl && p.healthUrl.trim()));
+  let health = $state<Record<number, HealthResult>>({});
+  let latHist = $state<Record<number, number[]>>({});
+  let checking = $state(false);
+  const onlineCount = $derived(healthProjects.filter((p) => health[p.id]?.ok).length);
+
+  async function checkAll() {
+    if (!healthProjects.length) return;
+    checking = true;
+    await Promise.all(healthProjects.map(async (p) => {
+      try {
+        const r = await monitor.check(p.healthUrl!.trim());
+        health = { ...health, [p.id]: r };
+        const h = [...(latHist[p.id] ?? []), r.latencyMs].slice(-14);
+        latHist = { ...latHist, [p.id]: h };
+      } catch { /* */ }
+    }));
+    checking = false;
+  }
+  function hsClass(r: HealthResult | undefined): string {
+    if (!r) return "";
+    if (r.ok) return "up";
+    if (r.reachable) return "warn";
+    return "down";
+  }
+  function latColor(ms: number): string {
+    return ms < 300 ? "var(--git-ahead)" : ms < 900 ? "var(--git-dirty)" : "var(--danger)";
+  }
+
+  let hcTimer: ReturnType<typeof setInterval> | undefined;
+  onMount(() => {
+    checkAll();
+    hcTimer = setInterval(checkAll, 30000);
+  });
+  onDestroy(() => { if (hcTimer) clearInterval(hcTimer); });
 </script>
 
 <div class="ws-inner dash">
@@ -76,6 +115,44 @@
     <div class="dash-hello">Привет, <span>{$displayName}</span></div>
     <div class="dash-sub">{visible.length} {visible.length === 1 ? "проект" : "проектов"} · {attention.length} требуют внимания</div>
   </div>
+
+  {#if healthProjects.length}
+    <div style="margin-bottom:26px">
+      <h3 class="section-title"><Icon name="activity" class="ic-sm" /> Статус сервисов
+        <span class="hs-summary">{onlineCount}/{healthProjects.length} онлайн</span>
+        <button class="more" style="margin-left:10px" disabled={checking} onclick={checkAll}>
+          <Icon name="refresh-cw" class="ic-sm" /> {checking ? "проверка…" : "обновить"}
+        </button>
+      </h3>
+      <div class="card health-card">
+        {#each healthProjects as p (p.id)}
+          {@const r = health[p.id]}
+          <div class="hs-row" role="button" tabindex="0" onclick={() => p.healthUrl && actions.openUrl(p.healthUrl)}>
+            <span class="hs-dot {hsClass(r)}"></span>
+            <span class="att-be" style="--p-color:{p.color ?? 'var(--accent)'};width:30px;height:30px;font-size:15px"><ProjectIcon icon={p.icon} size={18} /></span>
+            <div class="hs-main">
+              <div class="hs-name">{p.name}{#if r?.detail}<span class="hs-detail">· {r.detail}</span>{/if}</div>
+              <div class="hs-url">{p.healthUrl}</div>
+            </div>
+            <div class="hs-spark">
+              {#each (latHist[p.id] ?? []) as ms}
+                {@const mx = Math.max(1, ...(latHist[p.id] ?? [1]))}
+                <i style="height:{Math.max(10, Math.round((ms / mx) * 100))}%;background:{latColor(ms)}"></i>
+              {/each}
+            </div>
+            <div class="hs-meta">
+              {#if r}
+                <span class="hs-lat" style="color:{latColor(r.latencyMs)}">{r.latencyMs} мс</span>
+                <span class="hs-code">{r.reachable ? r.status : "—"}</span>
+              {:else}
+                <span class="hs-lat" style="color:var(--muted-2)">…</span>
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   {#if $projectsLoaded && !visible.length}
     <div class="card" style="padding:40px;text-align:center;color:var(--muted)">

@@ -63,6 +63,7 @@
   let status = $state(project.status);
   let path = $state(project.path ?? "");
   let repoPath = $state(project.repoPath ?? "");
+  let healthUrl = $state(project.healthUrl ?? "");
   let tagsRaw = $state(project.tags.join(", "));
   let icon = $state(project.icon ?? EMOJI[0]);
   let color = $state(project.color ?? COLORS[0]);
@@ -76,6 +77,7 @@
       lastId = project.id;
       name = project.name; description = project.description ?? ""; status = project.status;
       path = project.path ?? ""; repoPath = project.repoPath ?? "";
+      healthUrl = project.healthUrl ?? "";
       tagsRaw = project.tags.join(", "); icon = project.icon ?? EMOJI[0]; color = project.color ?? COLORS[0];
     }
   });
@@ -88,6 +90,7 @@
       status,
       path: path.trim() || null,
       repoPath: repoPath.trim() || null,
+      healthUrl: healthUrl.trim() || null,
       tags: tagsRaw.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 8),
       icon,
       color,
@@ -154,6 +157,10 @@
       <div class="field">
         <label for="st-repo">Git-репозиторий</label>
         <PathInput id="st-repo" bind:value={repoPath} placeholder="~/dev/project" />
+      </div>
+      <div class="field span-2">
+        <label for="st-health">Health-чек (URL) <span style="color:var(--muted-2)">(страница статуса или главная сайта)</span></label>
+        <input id="st-health" class="tin mono" bind:value={healthUrl} placeholder="https://api.example.com/health" />
       </div>
       <div class="field span-2">
         <label for="st-tags">Теги (через запятую)</label>

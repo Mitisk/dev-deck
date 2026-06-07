@@ -10,6 +10,7 @@ export type ProjectInput = {
   icon?: string | null;
   path?: string | null;
   repoPath?: string | null;
+  healthUrl?: string | null;
   tags: string[];
 };
 

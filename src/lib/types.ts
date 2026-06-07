@@ -11,6 +11,7 @@ export type Project = {
   icon: string | null; // emoji
   path: string | null;
   repoPath: string | null;
+  healthUrl: string | null;
   pinned: boolean;
   sortOrder: number;
   tags: string[];

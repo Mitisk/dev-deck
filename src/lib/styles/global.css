@@ -759,3 +759,28 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .tcard { position: relative; }
 .tcard::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--accent); opacity: 0; transition: var(--t); pointer-events: none; }
 .tcard:hover::after { opacity: .35; }
+
+/* health-чек сервисов */
+.hs-summary { margin-left: 10px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.health-card { padding: 4px 6px; }
+.hs-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--r-md); border-bottom: 1px solid var(--border); cursor: pointer; transition: var(--t); }
+.hs-row:last-child { border-bottom: 0; }
+.hs-row:hover { background: var(--hover); }
+.hs-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; background: var(--muted-2); }
+.hs-dot.up { background: var(--git-ahead); box-shadow: 0 0 0 0 color-mix(in oklab, var(--git-ahead) 70%, transparent); animation: hs-pulse 1.8s infinite; }
+.hs-dot.warn { background: var(--git-dirty); }
+.hs-dot.down { background: var(--danger); }
+@keyframes hs-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--git-ahead) 60%, transparent); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.hs-main { flex: 1; min-width: 0; }
+.hs-name { font-size: 13px; font-weight: 600; }
+.hs-detail { margin-left: 6px; font-size: 11px; font-weight: 500; color: var(--muted); }
+.hs-url { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-spark { display: flex; align-items: flex-end; gap: 2px; height: 26px; width: 64px; flex: none; }
+.hs-spark i { flex: 1; min-width: 2px; border-radius: 1px; opacity: .85; }
+.hs-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; min-width: 56px; }
+.hs-lat { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.hs-code { font-family: var(--font-mono); font-size: 11px; color: var(--muted-2); }
