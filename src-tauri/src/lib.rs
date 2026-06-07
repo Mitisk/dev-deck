@@ -1,3 +1,4 @@
+mod backup;
 mod commands;
 mod crypto;
 mod db;
@@ -30,6 +31,7 @@ pub fn run() {
             std::fs::create_dir_all(dir.join("backups"))?;
             let conn = db::open(&dir.join("devdeck.db"))
                 .map_err(|e| format!("db init failed: {}", e.message))?;
+            backup::maybe_auto_backup(&conn, &dir.join("backups"));
             app.manage(AppState { db: Mutex::new(conn) });
 
             // --- системный трей ---
@@ -129,6 +131,8 @@ pub fn run() {
             commands::cmds::commands_delete,
             commands::cmds::command_run,
             commands::search::search_global,
+            commands::backup::backup_now,
+            commands::backup::backups_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

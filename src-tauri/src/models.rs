@@ -209,3 +209,11 @@ pub struct AttentionItem {
     pub last_hash: Option<String>,
     pub last_message: Option<String>,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupInfo {
+    pub name: String,
+    pub size_bytes: u64,
+    pub created_epoch: u64,
+}
