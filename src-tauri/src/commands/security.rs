@@ -189,6 +189,31 @@ pub fn master_disable(state: State<AppState>, password: String) -> AppResult<()>
     Ok(())
 }
 
+/// Сменить мастер-пароль: проверить старый, перешифровать секреты на новый ключ.
+#[tauri::command]
+pub fn master_change(state: State<AppState>, old_password: String, new_password: String) -> AppResult<()> {
+    if new_password.trim().len() < 4 {
+        return Err(AppError { kind: ErrorKind::Validation, message: "Новый пароль слишком короткий (мин. 4)".into() });
+    }
+    let conn = state.db.lock().map_err(|_| AppError::internal("db mutex poisoned"))?;
+    if current_mode(&conn) != "master" {
+        return Err(AppError { kind: ErrorKind::Validation, message: "Мастер-пароль не включён".into() });
+    }
+    let old_key = verify_password(&conn, &old_password)?;
+    let new_salt = crypto::random_salt();
+    let new_key = crypto::derive_key(&new_password, &new_salt)?;
+    let tx = conn.unchecked_transaction()?;
+    re_encrypt_all(&conn, |blob| {
+        let plain = crypto::aes_decrypt(&old_key, blob)?;
+        crypto::aes_encrypt(&new_key, &plain)
+    })?;
+    set_setting(&conn, "kdf_salt", &hex::encode(new_salt))?;
+    set_setting(&conn, "verifier", &hex::encode(crypto::aes_encrypt(&new_key, VERIFY)?))?;
+    tx.commit()?;
+    *state.master_key.lock().map_err(|_| AppError::internal("mk poisoned"))? = Some(new_key);
+    Ok(())
+}
+
 fn verify_password(conn: &Connection, password: &str) -> AppResult<[u8; 32]> {
     let salt_hex = get_setting(conn, "kdf_salt")?.ok_or_else(|| AppError::internal("нет соли"))?;
     let ver_hex =
@@ -291,5 +316,36 @@ mod tests {
         // без ключа (locked) → ошибка
         let locked_mk = Mutex::new(None);
         assert!(decrypt_secret(&conn, &locked_mk, &stored).is_err());
+    }
+
+    #[test]
+    fn master_change_reencrypts_secret() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let pid = conn.last_insert_rowid();
+        let dpapi = crypto::encrypt(b"sec").unwrap();
+        conn.execute("INSERT INTO credentials(project_id,label,type,secret_encrypted,sort_order) VALUES(?1,'C','token',?2,0)", params![pid, dpapi]).unwrap();
+
+        // включить master (pw1)
+        let salt = crypto::random_salt();
+        let k1 = crypto::derive_key("pw1234", &salt).unwrap();
+        re_encrypt_all(&conn, |b| { let p = crypto::decrypt(b)?; crypto::aes_encrypt(&k1, &p) }).unwrap();
+        set_setting(&conn, "crypto_mode", "master").unwrap();
+        set_setting(&conn, "kdf_salt", &hex::encode(salt)).unwrap();
+        set_setting(&conn, "verifier", &hex::encode(crypto::aes_encrypt(&k1, VERIFY).unwrap())).unwrap();
+
+        // сменить на pw2
+        let old = verify_password(&conn, "pw1234").unwrap();
+        let nsalt = crypto::random_salt();
+        let k2 = crypto::derive_key("newpass", &nsalt).unwrap();
+        re_encrypt_all(&conn, |b| { let p = crypto::aes_decrypt(&old, b)?; crypto::aes_encrypt(&k2, &p) }).unwrap();
+        set_setting(&conn, "kdf_salt", &hex::encode(nsalt)).unwrap();
+        set_setting(&conn, "verifier", &hex::encode(crypto::aes_encrypt(&k2, VERIFY).unwrap())).unwrap();
+
+        assert!(verify_password(&conn, "pw1234").is_err());
+        let kk = verify_password(&conn, "newpass").unwrap();
+        let stored: Vec<u8> = conn.query_row("SELECT secret_encrypted FROM credentials", [], |r| r.get(0)).unwrap();
+        let mk = Mutex::new(Some(kk));
+        assert_eq!(decrypt_secret(&conn, &mk, &stored).unwrap(), b"sec");
     }
 }

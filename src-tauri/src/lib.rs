@@ -158,6 +158,7 @@ pub fn run() {
             commands::security::crypto_status,
             commands::security::master_enable,
             commands::security::master_disable,
+            commands::security::master_change,
             commands::security::master_unlock,
             commands::security::master_lock,
             commands::watch::watch_resync,
