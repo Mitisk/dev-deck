@@ -2,6 +2,7 @@
   import { projects, activeProjectId, projectsLoaded } from "$lib/stores/projects";
   import { showNewProject, showSettings } from "$lib/stores/ui";
   import { theme, toggleTheme } from "$lib/stores/theme";
+  import { changedProjects } from "$lib/stores/changed";
   import { USER } from "$lib/mock";
   import Icon from "./Icon.svelte";
 
@@ -51,6 +52,7 @@
              onclick={() => select(p.id)}>
           {#if p.icon}<span class="emoji">{p.icon}</span>{:else}<span class="dot"></span>{/if}
           <span class="nm">{p.name}</span>
+          {#if $changedProjects.includes(p.id)}<span class="meta dirty" title="Изменения в папке"><span class="dot" style="--p-color:var(--git-dirty)"></span></span>{/if}
         </div>
       {/each}
     {/if}
@@ -62,6 +64,7 @@
            onclick={() => select(p.id)}>
         {#if p.icon}<span class="emoji">{p.icon}</span>{:else}<span class="dot"></span>{/if}
         <span class="nm">{p.name}</span>
+        {#if $changedProjects.includes(p.id)}<span class="meta dirty" title="Изменения в папке"><span class="dot" style="--p-color:var(--git-dirty)"></span></span>{/if}
       </div>
     {/each}
 

@@ -8,10 +8,14 @@
   import AppSettings from "$lib/components/AppSettings.svelte";
   import { showPalette } from "$lib/stores/ui";
   import { loadProjects } from "$lib/stores/projects";
+  import { startWatchEvents } from "$lib/stores/changed";
+  import * as watchApi from "$lib/api/watch";
   import { onMount } from "svelte";
 
-  onMount(() => {
-    loadProjects();
+  onMount(async () => {
+    await loadProjects();
+    await startWatchEvents();
+    void watchApi.resync(); // пересобрать вотчер под текущие проекты
   });
 </script>
 

@@ -16,4 +16,6 @@ export async function loadProjects(): Promise<void> {
   const list = await projectsApi.list();
   projects.set(list);
   projectsLoaded.set(true);
+  // обновить вотчер папок под актуальный список (не критично при ошибке)
+  import("../api/watch").then((w) => w.resync().catch(() => {}));
 }
