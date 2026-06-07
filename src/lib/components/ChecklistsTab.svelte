@@ -89,6 +89,14 @@
     await cl.addItem(checklistId, text);
     await load();
   }
+
+  // авто-высота textarea под полный текст пункта
+  function autogrow(node: HTMLTextAreaElement) {
+    const resize = () => { node.style.height = "auto"; node.style.height = node.scrollHeight + "px"; };
+    resize();
+    node.addEventListener("input", resize);
+    return { destroy() { node.removeEventListener("input", resize); } };
+  }
 </script>
 
 <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;position:relative">
@@ -141,12 +149,13 @@
             <button class="cbox" aria-label="переключить" onclick={() => toggle(it.id, !it.isDone)}>
               {#if it.isDone}<Icon name="check" class="ic-sm" />{/if}
             </button>
-            <input
+            <textarea
               class="lab tin"
-              style="border:0;background:none;padding:0;flex:1"
+              rows="1"
+              use:autogrow
               value={it.text}
-              onchange={(e) => editItem(it.id, (e.currentTarget as HTMLInputElement).value)}
-            />
+              onchange={(e) => editItem(it.id, (e.currentTarget as HTMLTextAreaElement).value)}
+            ></textarea>
             <button class="cl-del" title="Удалить пункт" onclick={() => deleteItem(it.id)}>
               <Icon name="x" class="ic-sm" />
             </button>
