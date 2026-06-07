@@ -263,6 +263,14 @@ pub struct TaskColumn {
     pub sort_order: i64,
 }
 
+/// Профиль пользователя приложения (имя/хэндл), хранится в settings.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserProfile {
+    pub name: String,
+    pub handle: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Label {

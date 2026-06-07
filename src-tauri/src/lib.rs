@@ -185,6 +185,8 @@ pub fn run() {
             commands::security::master_change,
             commands::security::master_unlock,
             commands::security::master_lock,
+            commands::security::user_get,
+            commands::security::user_set,
             commands::watch::watch_resync,
             commands::tray::tray_resync,
         ])

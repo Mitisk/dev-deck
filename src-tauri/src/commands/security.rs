@@ -255,6 +255,27 @@ pub fn master_lock(state: State<AppState>) -> AppResult<()> {
     Ok(())
 }
 
+// ---------- профиль пользователя (имя/хэндл) ----------
+
+#[tauri::command]
+pub fn user_get(state: State<AppState>) -> AppResult<crate::models::UserProfile> {
+    let conn = state.db.lock().map_err(|_| AppError::internal("db mutex poisoned"))?;
+    let name = get_setting(&conn, "user_name")?.unwrap_or_default();
+    let handle = get_setting(&conn, "user_handle")?;
+    Ok(crate::models::UserProfile { name, handle })
+}
+
+#[tauri::command]
+pub fn user_set(state: State<AppState>, name: String, handle: Option<String>) -> AppResult<()> {
+    let conn = state.db.lock().map_err(|_| AppError::internal("db mutex poisoned"))?;
+    set_setting(&conn, "user_name", name.trim())?;
+    match handle.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(h) => set_setting(&conn, "user_handle", h)?,
+        None => del_setting(&conn, "user_handle")?,
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
