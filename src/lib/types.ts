@@ -34,7 +34,8 @@ export type GitStatus = {
 
 export type GitOpResult = { ok: boolean; output: string };
 
-export type TaskStatus = "todo" | "doing" | "done";
+// Статус задачи = ключ колонки канбана. Дефолтные — todo/doing/done; кастомные — c{id}.
+export type TaskStatus = string;
 export type Task = {
   id: number;
   projectId: number;
@@ -134,3 +135,5 @@ export type AgendaItem = {
   dueDate: string;
   priority: number;
 };
+
+export type TaskColumn = { id: number; projectId: number; key: string; name: string; isDone: boolean; sortOrder: number };
