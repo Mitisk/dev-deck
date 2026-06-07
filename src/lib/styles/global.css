@@ -717,6 +717,12 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .cred-head .cred-del { margin-left: auto; }
 
 /* чеклист — строка добавления пункта */
+/* поле пути с кнопкой выбора каталога/файла */
+.path-input { display: flex; gap: 7px; align-items: center; }
+.path-input .tin { flex: 1; min-width: 0; }
+.path-browse { width: 38px; height: 38px; flex: none; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface-2); color: var(--muted); display: grid; place-items: center; cursor: pointer; transition: var(--t); }
+.path-browse:hover { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+
 .cl-add { padding: 8px 0 4px; }
 .cl-add .tin { font-size: 12.5px; padding: 7px 10px; }
 

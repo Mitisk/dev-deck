@@ -4,6 +4,7 @@
   import { pushToast } from "$lib/stores/toasts";
   import * as projectsApi from "$lib/api/projects";
   import Icon from "./Icon.svelte";
+  import PathInput from "./PathInput.svelte";
 
   const EMOJI = ["🚀", "🎨", "📊", "🤖", "🛒", "📱", "⚙️", "🧪", "🔌", "📦", "🌐", "🔥"];
   const COLORS = ["#7c7dff", "#c77dff", "#3fb863", "#e0a83a", "#f0616d", "#5b9cff", "#19c3c0", "#ff8b5b"];
@@ -76,7 +77,7 @@
         </div>
         <div class="field">
           <label for="np-path">Путь к репозиторию</label>
-          <input id="np-path" class="tin mono" bind:value={path} placeholder="~/dev/my-project" autocomplete="off" />
+          <PathInput id="np-path" bind:value={path} placeholder="~/dev/my-project" />
         </div>
         <div class="field">
           <label for="np-tags">Теги (через запятую)</label>

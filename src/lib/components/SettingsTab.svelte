@@ -10,6 +10,7 @@
   import * as tasksApi from "$lib/api/tasks";
   import Icon from "./Icon.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import PathInput from "./PathInput.svelte";
 
   let { project }: { project: Project } = $props();
 
@@ -140,11 +141,11 @@
       </div>
       <div class="field">
         <label for="st-path">Папка проекта</label>
-        <input id="st-path" class="tin mono" bind:value={path} placeholder="~/dev/project" />
+        <PathInput id="st-path" bind:value={path} placeholder="~/dev/project" />
       </div>
       <div class="field">
         <label for="st-repo">Git-репозиторий</label>
-        <input id="st-repo" class="tin mono" bind:value={repoPath} placeholder="~/dev/project" />
+        <PathInput id="st-repo" bind:value={repoPath} placeholder="~/dev/project" />
       </div>
       <div class="field span-2">
         <label for="st-tags">Теги (через запятую)</label>
@@ -275,7 +276,7 @@
         <div class="field"><label for="cm-label">Ярлык</label><input id="cm-label" class="tin" placeholder="Запустить dev" bind:value={cLabel} /></div>
         <div class="field"><label for="cm-cmd">Команда (shell)</label><input id="cm-cmd" class="tin mono" placeholder="npm run dev" bind:value={cCommand} /></div>
         <div class="field"><label for="cm-dir">Рабочая папка <span style="color:var(--muted-2)">(пусто = папка проекта)</span></label>
-          <input id="cm-dir" class="tin mono" placeholder={project.path ?? "~/dev/project"} bind:value={cDir} /></div>
+          <PathInput id="cm-dir" bind:value={cDir} placeholder={project.path ?? "~/dev/project"} /></div>
         <div class="field"><label for="cm-mode">Режим запуска</label>
           <select id="cm-mode" class="tin" bind:value={cRunIn}>
             <option value="terminal">В терминале (новое окно)</option>
