@@ -2,6 +2,7 @@ pub mod actions;
 pub mod backup;
 pub mod checklists;
 pub mod cmds;
+pub mod columns;
 pub mod creds;
 pub mod files;
 pub mod git;

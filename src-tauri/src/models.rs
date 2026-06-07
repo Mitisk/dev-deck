@@ -250,3 +250,14 @@ pub struct AgendaItem {
     pub due_date: String,
     pub priority: i64,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskColumn {
+    pub id: i64,
+    pub project_id: i64,
+    pub key: String,
+    pub name: String,
+    pub is_done: bool,
+    pub sort_order: i64,
+}

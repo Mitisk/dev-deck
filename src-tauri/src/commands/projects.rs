@@ -113,6 +113,7 @@ pub fn projects_create(state: State<AppState>, input: ProjectInput) -> AppResult
     )?;
     let id = conn.last_insert_rowid();
     set_tags(&conn, id, &input.tags)?;
+    crate::commands::columns::seed_default_columns(&conn, id)?;
     row_to_project(&conn, id)
 }
 

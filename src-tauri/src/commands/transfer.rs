@@ -144,6 +144,7 @@ fn import_doc(
             params![p.name, p.description, p.status, p.color, p.icon, p.path, p.repo_path, p.pinned as i64, p.sort_order],
         )?;
         let pid = conn.last_insert_rowid();
+        crate::commands::columns::seed_default_columns(conn, pid)?;
 
         for tag in &p.tags {
             conn.execute("INSERT OR IGNORE INTO tags(name) VALUES(?1)", [tag])?;
