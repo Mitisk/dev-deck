@@ -8,4 +8,5 @@ pub mod links;
 pub mod health;
 pub mod notes;
 pub mod projects;
+pub mod search;
 pub mod tasks;

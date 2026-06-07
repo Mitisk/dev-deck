@@ -184,3 +184,14 @@ pub struct CommandInput {
     pub run_in: Option<String>,
     pub icon: Option<String>,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub kind: String,        // project | task | note | link | cred | command | file
+    pub project_id: i64,
+    pub project_name: String,
+    pub id: i64,             // id сущности (для project — id проекта)
+    pub title: String,
+    pub subtitle: String,
+}

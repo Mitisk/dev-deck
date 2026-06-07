@@ -78,6 +78,7 @@ pub fn run() {
             commands::cmds::commands_update,
             commands::cmds::commands_delete,
             commands::cmds::command_run,
+            commands::search::search_global,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
