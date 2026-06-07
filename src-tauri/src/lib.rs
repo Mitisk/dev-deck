@@ -133,6 +133,9 @@ pub fn run() {
             commands::search::search_global,
             commands::backup::backup_now,
             commands::backup::backups_list,
+            commands::transfer::export_json,
+            commands::transfer::export_to_file,
+            commands::transfer::import_json,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

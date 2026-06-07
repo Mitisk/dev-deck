@@ -217,3 +217,9 @@ pub struct BackupInfo {
     pub size_bytes: u64,
     pub created_epoch: u64,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSummary {
+    pub projects: usize,
+}
