@@ -5,6 +5,7 @@ mod db;
 mod error;
 mod models;
 mod state;
+mod watch;
 
 use state::AppState;
 use std::sync::Mutex;
@@ -33,6 +34,7 @@ pub fn run() {
                 .map_err(|e| format!("db init failed: {}", e.message))?;
             backup::maybe_auto_backup(&conn, &dir.join("backups"));
             app.manage(AppState { db: Mutex::new(conn), master_key: Mutex::new(None) });
+            app.manage(watch::WatchState::default());
 
             // --- системный трей ---
             let open_i = MenuItem::with_id(app, "open", "Открыть DevDeck", true, None::<&str>)?;
@@ -71,6 +73,9 @@ pub fn run() {
                     }
                 });
             }
+
+            // --- слежение за папками проектов (notify) ---
+            let _ = watch::resync(app.handle());
 
             Ok(())
         })
@@ -146,6 +151,7 @@ pub fn run() {
             commands::security::master_disable,
             commands::security::master_unlock,
             commands::security::master_lock,
+            commands::watch::watch_resync,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
