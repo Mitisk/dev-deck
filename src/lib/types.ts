@@ -97,3 +97,12 @@ export type ProjectCommand = {
   icon: string | null;
   sortOrder: number;
 };
+
+export type SearchHit = {
+  kind: string;
+  projectId: number;
+  projectName: string;
+  id: number;
+  title: string;
+  subtitle: string;
+};
