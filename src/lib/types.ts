@@ -118,3 +118,6 @@ export type AttentionItem = {
   lastHash: string | null;
   lastMessage: string | null;
 };
+
+export type BackupInfo = { name: string; sizeBytes: number; createdEpoch: number };
+export type ImportSummary = { projects: number };

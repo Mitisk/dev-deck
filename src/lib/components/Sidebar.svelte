@@ -1,6 +1,6 @@
 <script lang="ts">
   import { projects, activeProjectId, projectsLoaded } from "$lib/stores/projects";
-  import { showNewProject } from "$lib/stores/ui";
+  import { showNewProject, showSettings } from "$lib/stores/ui";
   import { theme, toggleTheme } from "$lib/stores/theme";
   import { USER } from "$lib/mock";
   import Icon from "./Icon.svelte";
@@ -78,5 +78,6 @@
     <button class="icon-btn" onclick={toggleTheme} title="Сменить тему">
       {#if $theme === "dark"}<Icon name="sun" class="ic" />{:else}<Icon name="moon" class="ic" />{/if}
     </button>
+    <button class="icon-btn" onclick={() => showSettings.set(true)} title="Настройки"><Icon name="settings" class="ic" /></button>
   </div>
 </aside>

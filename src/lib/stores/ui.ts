@@ -9,3 +9,5 @@ export const activeTab = writable<Tab>("overview");
 export const showNewProject = writable(false);
 
 export const showPalette = writable(false);
+
+export const showSettings = writable(false);
