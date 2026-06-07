@@ -70,6 +70,7 @@ pub struct Task {
     pub sort_order: i64,
     pub created_at: String,
     pub completed_at: Option<String>,
+    pub label_ids: Vec<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -259,5 +260,15 @@ pub struct TaskColumn {
     pub key: String,
     pub name: String,
     pub is_done: bool,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Label {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub color: Option<String>,
     pub sort_order: i64,
 }

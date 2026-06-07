@@ -11,7 +11,7 @@ fn lock<'a>(state: &'a State<AppState>) -> AppResult<MutexGuard<'a, Connection>>
 }
 
 fn row_to_task(conn: &Connection, id: i64) -> AppResult<Task> {
-    Ok(conn.query_row(
+    let mut t = conn.query_row(
         "SELECT id, project_id, title, description, status, priority, due_date, sort_order, created_at, completed_at
          FROM tasks WHERE id = ?1",
         [id],
@@ -27,9 +27,13 @@ fn row_to_task(conn: &Connection, id: i64) -> AppResult<Task> {
                 sort_order: r.get(7)?,
                 created_at: r.get(8)?,
                 completed_at: r.get(9)?,
+                label_ids: Vec::new(),
             })
         },
-    )?)
+    )?;
+    let mut stmt = conn.prepare("SELECT label_id FROM task_labels WHERE task_id=?1 ORDER BY label_id")?;
+    t.label_ids = stmt.query_map([id], |r| r.get::<_, i64>(0))?.collect::<Result<_, _>>()?;
+    Ok(t)
 }
 
 fn list_tasks(conn: &Connection, project_id: i64) -> AppResult<Vec<Task>> {
