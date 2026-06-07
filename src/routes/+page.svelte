@@ -7,7 +7,7 @@
   import CommandPalette from "$lib/components/CommandPalette.svelte";
   import AppSettings from "$lib/components/AppSettings.svelte";
   import { showPalette } from "$lib/stores/ui";
-  import { loadProjects } from "$lib/stores/projects";
+  import { loadProjects, activeProjectId } from "$lib/stores/projects";
   import { startWatchEvents } from "$lib/stores/changed";
   import * as watchApi from "$lib/api/watch";
   import { onMount } from "svelte";
@@ -16,6 +16,8 @@
     await loadProjects();
     await startWatchEvents();
     void watchApi.resync(); // пересобрать вотчер под текущие проекты
+    const { listen } = await import("@tauri-apps/api/event");
+    await listen<number>("tray-open-project", (e) => activeProjectId.set(e.payload));
   });
 </script>
 
