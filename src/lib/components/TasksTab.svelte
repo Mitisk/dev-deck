@@ -21,7 +21,8 @@
   let adding = $state<Record<string, string>>({});
   let dragId = $state<number | null>(null);
   let dragging = $state(false);
-  let overCol = $state<string | null>(null);
+  let dropKey = $state<string | null>(null);       // колонка-приёмник под курсором
+  let dropBeforeId = $state<number | null>(null);  // вставить перед этой задачей; null = в конец
   let colDragKey = $state<string | null>(null);
   let lblDragId = $state<number | null>(null);
 
@@ -126,11 +127,37 @@
     await tasksApi.create(project.id, { title, status: key });
     await load();
   }
+  function clearDrop() { dropKey = null; dropBeforeId = null; dragging = false; dragId = null; }
+
+  // id видимой задачи, следующей за `afterId` в колонке (или null, если последняя)
+  function nextVisibleId(key: string, afterId: number): number | null {
+    const v = visibleColTasks(key);
+    const i = v.findIndex((t) => t.id === afterId);
+    return i >= 0 && i + 1 < v.length ? v[i + 1].id : null;
+  }
+  // позиция вставки по положению курсора относительно середины карточки
+  function onCardDragOver(e: DragEvent, key: string, taskId: number) {
+    if (colDragKey || dragId == null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const before = e.clientY - r.top < r.height / 2;
+    dropKey = key;
+    dropBeforeId = before ? taskId : nextVisibleId(key, taskId);
+  }
+  // курсор над пустой частью тела колонки — вставка в конец
+  function onBodyDragOver(e: DragEvent, key: string) {
+    if (colDragKey || dragId == null) return;
+    e.preventDefault();
+    dropKey = key;
+    dropBeforeId = null;
+  }
+
   async function onDrop(key: string) {
     if (colDragKey) {
       const from = colDragKey;
+      clearDrop();
       colDragKey = null;
-      overCol = null;
       if (from === key) return;
       const order = columns.map((c) => c.key);
       const fi = order.indexOf(from), ti = order.indexOf(key);
@@ -143,13 +170,18 @@
       await load();
       return;
     }
-    overCol = null;
     const id = dragId;
+    const before = dropBeforeId;
+    clearDrop();
     if (id == null) return;
-    const t = tasks.find((x) => x.id === id);
-    if (!t || t.status === key) return;
-    const nextSort = Math.max(0, ...colTasks(key).map((x) => x.sortOrder)) + 1;
-    await tasksApi.move(id, key, nextSort);
+    const cur = colTasks(key).map((t) => t.id);
+    const ids = cur.filter((x) => x !== id);
+    let at = before == null ? ids.length : ids.indexOf(before);
+    if (at < 0) at = ids.length;
+    ids.splice(at, 0, id);
+    // позиция не изменилась — не дёргать бэкенд
+    if (cur.length === ids.length && cur.every((x, i) => x === ids[i])) return;
+    await tasksApi.reorder(project.id, key, ids);
     await load();
   }
 
@@ -203,9 +235,8 @@
 
 <div class="kanban" style="grid-template-columns:repeat({Math.max(columns.length, 1)}, 1fr)">
   {#each columns as c (c.id)}
-    <div class="col" class:drag-over={overCol === c.key} role="list"
-         ondragover={(e) => { e.preventDefault(); if (!colDragKey) overCol = c.key; }}
-         ondragleave={() => { if (overCol === c.key) overCol = null; }}
+    <div class="col" class:drag-over={dropKey === c.key && dragId != null} role="list"
+         ondragover={(e) => { e.preventDefault(); }}
          ondrop={() => onDrop(c.key)}>
       <div class="col-head" draggable={true} style="cursor:grab" title="Перетащите, чтобы изменить порядок"
            ondragstart={() => { colDragKey = c.key; }}
@@ -216,11 +247,13 @@
         <span class="n">{visibleColTasks(c.key).length}</span>
         <button class="mini" title="Настроить колонку" style="margin-left:auto" onclick={() => openEditCol(c)}><Icon name="ellipsis" class="ic-sm" /></button>
       </div>
-      <div class="col-body">
+      <div class="col-body" ondragover={(e) => onBodyDragOver(e, c.key)}>
         {#each visibleColTasks(c.key) as t (t.id)}
+          {#if dropKey === c.key && dropBeforeId === t.id && dragId != null && dragId !== t.id}<div class="drop-line"></div>{/if}
           <div class="tcard" class:dragging={dragId === t.id} draggable={true} role="button" tabindex="0"
-               ondragstart={() => { dragId = t.id; dragging = true; }}
-               ondragend={() => { dragging = false; setTimeout(() => (dragId = null), 0); }}
+               ondragstart={(e) => { dragId = t.id; dragging = true; if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(t.id)); } }}
+               ondragover={(e) => onCardDragOver(e, c.key, t.id)}
+               ondragend={() => clearDrop()}
                onclick={() => openEdit(t)}>
             <div class="tt">{t.title}</div>
             <div class="row">
@@ -230,6 +263,7 @@
             </div>
           </div>
         {/each}
+        {#if dropKey === c.key && dropBeforeId === null && dragId != null}<div class="drop-line"></div>{/if}
       </div>
       <input class="add-task" placeholder="+ задача" bind:value={adding[c.key]} onkeydown={(e) => { if (e.key === 'Enter') quickAdd(c.key); }} />
     </div>
