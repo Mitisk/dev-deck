@@ -296,7 +296,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 
 /* блоки/карточки общего вида */
 .section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
-.section-title .more { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; cursor: pointer; }
+.section-title .more { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--muted); text-transform: none; letter-spacing: 0; cursor: pointer; background: none; border: 0; padding: 0; font-family: inherit; transition: var(--t); }
+.section-title .more:hover { color: var(--text); }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow); }
 .grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; }
 .stack { display: flex; flex-direction: column; gap: 26px; }
@@ -322,11 +323,13 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* быстрые ссылки */
 .links { display: flex; flex-direction: column; }
 .link-row {
-  display: flex; align-items: center; gap: 11px; padding: 10px 4px;
+  display: flex; align-items: center; gap: 11px; padding: 10px 8px;
   border-bottom: 1px solid var(--border); cursor: pointer; transition: var(--t);
+  border-radius: var(--r-md); outline: none;
 }
 .link-row:last-child { border-bottom: 0; }
-.link-row:hover { background: var(--hover); padding-left: 8px; }
+.link-row:hover { background: var(--hover); }
+.link-row:focus-visible { background: var(--hover); box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--accent) 55%, transparent); }
 .link-row .lico { width: 30px; height: 30px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center; color: var(--muted); flex: none; }
 .link-row .lt { font-size: 13px; font-weight: 500; }
 .link-row .lu { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }

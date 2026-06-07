@@ -102,9 +102,9 @@
     <div><p class="desc">{project.description}</p></div>
   {/if}
 
-  <div>
-    <h3 class="section-title"><Icon name="terminal" class="ic-sm" /> Команды</h3>
-    {#if cmds.length}
+  {#if cmds.length}
+    <div>
+      <h3 class="section-title"><Icon name="terminal" class="ic-sm" /> Команды</h3>
       <div class="cmd-grid">
         {#each cmds as c (c.id)}
           <button class="cmd" style="--c-tint:{project.color ?? 'var(--accent)'}" onclick={() => runCmd(c)}>
@@ -122,12 +122,10 @@
           </button>
         {/each}
       </div>
-    {:else}
-      <p class="desc" style="color:var(--muted-2);font-size:13px">Команд нет — добавьте во вкладке «Настройки».</p>
-    {/if}
-  </div>
+    </div>
+  {/if}
 
-  <div class="grid-2">
+  {#snippet linksBlock()}
     <div>
       <h3 class="section-title"><Icon name="link" class="ic-sm" /> Быстрые ссылки</h3>
       <div class="card links" style="padding:6px 14px">
@@ -138,41 +136,51 @@
             <span class="ext"><Icon name="arrow-up-right" class="ic-sm" /></span>
           </div>
         {/each}
-        {#if !links.length}<div style="padding:12px;color:var(--muted-2);font-size:13px">Ссылок нет.</div>{/if}
       </div>
     </div>
+  {/snippet}
+
+  {#snippet gitBlock()}
     <div>
       <h3 class="section-title"><Icon name="git-branch" class="ic-sm" /> Git-сводка</h3>
-      {#if git}
-        <div class="gstats">
-          <div class="gstat"><div class="k"><Icon name="arrow-up" class="ic-sm" /> Впереди</div><div class="v ahead">{git.ahead}</div></div>
-          <div class="gstat"><div class="k"><Icon name="file-diff" class="ic-sm" /> Изменено</div><div class="v" class:dirty={git.dirty > 0}>{git.dirty}</div></div>
-          <div class="gstat"><div class="k"><Icon name="git-commit-horizontal" class="ic-sm" /> Стейдж</div><div class="v">{git.staged}</div></div>
+      <div class="gstats">
+        <div class="gstat"><div class="k"><Icon name="arrow-up" class="ic-sm" /> Впереди</div><div class="v ahead">{git?.ahead ?? 0}</div></div>
+        <div class="gstat"><div class="k"><Icon name="file-diff" class="ic-sm" /> Изменено</div><div class="v" class:dirty={(git?.dirty ?? 0) > 0}>{git?.dirty ?? 0}</div></div>
+        <div class="gstat"><div class="k"><Icon name="git-commit-horizontal" class="ic-sm" /> Стейдж</div><div class="v">{git?.staged ?? 0}</div></div>
+      </div>
+      {#if git?.lastHash}
+        <div class="card" style="padding:11px 14px;margin-top:10px;font-size:12px;color:var(--muted)">
+          <span class="mono" style="color:var(--text-2)">{git.lastHash.slice(0, 7)}</span> · {git.lastMessage ?? ""}
         </div>
-        {#if git.lastHash}
-          <div class="card" style="padding:11px 14px;margin-top:10px;font-size:12px;color:var(--muted)">
-            <span class="mono" style="color:var(--text-2)">{git.lastHash.slice(0, 7)}</span> · {git.lastMessage ?? ""}
-          </div>
-        {/if}
-      {:else}
-        <div class="card" style="padding:12px 14px;color:var(--muted-2);font-size:13px">Не git-репозиторий (укажите путь в настройках).</div>
       {/if}
     </div>
-  </div>
+  {/snippet}
 
-  <div>
-    <h3 class="section-title"><Icon name="folder" class="ic-sm" /> Файлы и папки</h3>
-    <div class="card links" style="padding:6px 14px">
-      {#each files as f (f.id)}
-        <div class="link-row" role="button" tabindex="0" style="cursor:pointer" onclick={() => actions.openShortcut(f.path)}>
-          <span class="lico"><Icon name="file" class="ic-sm" /></span>
-          <div style="flex:1;min-width:0"><div class="lt">{f.label}</div><div class="lu">{f.path}</div></div>
-          <span class="ext"><Icon name="arrow-up-right" class="ic-sm" /></span>
-        </div>
-      {/each}
-      {#if !files.length}<div style="padding:12px;color:var(--muted-2);font-size:13px">Файлов нет.</div>{/if}
+  {#if links.length && git}
+    <div class="grid-2">
+      {@render linksBlock()}
+      {@render gitBlock()}
     </div>
-  </div>
+  {:else if links.length}
+    {@render linksBlock()}
+  {:else if git}
+    {@render gitBlock()}
+  {/if}
+
+  {#if files.length}
+    <div>
+      <h3 class="section-title"><Icon name="folder" class="ic-sm" /> Файлы и папки</h3>
+      <div class="card links" style="padding:6px 14px">
+        {#each files as f (f.id)}
+          <div class="link-row" role="button" tabindex="0" style="cursor:pointer" onclick={() => actions.openShortcut(f.path)}>
+            <span class="lico"><Icon name="file" class="ic-sm" /></span>
+            <div style="flex:1;min-width:0"><div class="lt">{f.label}</div><div class="lu">{f.path}</div></div>
+            <span class="ext"><Icon name="arrow-up-right" class="ic-sm" /></span>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <div>
     <h3 class="section-title"><Icon name="list-checks" class="ic-sm" /> Ближайшие задачи
