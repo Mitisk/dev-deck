@@ -130,3 +130,13 @@ pub struct CredInput {
     /// None = не менять секрет (при update); Some("") = очистить; Some(x) = задать.
     pub secret: Option<String>,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Note {
+    pub id: i64,
+    pub project_id: i64,
+    pub title: Option<String>,
+    pub content_md: Option<String>,
+    pub updated_at: String,
+}
