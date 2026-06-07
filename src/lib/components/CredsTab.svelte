@@ -2,6 +2,7 @@
   import type { Project, Credential, CredType } from "$lib/types";
   import * as creds from "$lib/api/creds";
   import { copy, copySecret } from "$lib/clipboard";
+  import { pushToast } from "$lib/stores/toasts";
   import Icon from "./Icon.svelte";
 
   let { project }: { project: Project } = $props();
@@ -53,17 +54,31 @@
     load();
   });
 
+  async function getSecretSafe(id: number): Promise<string | null> {
+    try { return await creds.getSecret(id); }
+    catch (e) {
+      if ((e as { kind?: string }).kind === "locked") pushToast("Заблокировано", "Разблокируйте мастер-паролем в Настройках", "error");
+      return null;
+    }
+  }
+
   async function toggleReveal(id: number) {
     if (revealed[id] !== undefined) {
       const { [id]: _omit, ...rest } = revealed;
       revealed = rest;
       return;
     }
-    const secret = await creds.getSecret(id);
+    const secret = await getSecretSafe(id);
+    if (secret === null) return;
     revealed = { ...revealed, [id]: secret };
   }
   async function copyTheSecret(id: number) {
-    const secret = revealed[id] ?? (await creds.getSecret(id));
+    let secret = revealed[id];
+    if (secret === undefined) {
+      const s = await getSecretSafe(id);
+      if (s === null) return;
+      secret = s;
+    }
     await copySecret(secret);
   }
 

@@ -9,7 +9,8 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
     return await invoke<T>(cmd, args);
   } catch (err) {
     const e = err as { kind?: string; message?: string };
-    pushToast("Ошибка", e?.message ?? String(err), "error");
+    // «locked» компонент показывает собственным тостом — не дублируем здесь.
+    if (e?.kind !== "locked") pushToast("Ошибка", e?.message ?? String(err), "error");
     throw err;
   }
 }

@@ -4,7 +4,8 @@
   import { pushToast } from "$lib/stores/toasts";
   import * as backup from "$lib/api/backup";
   import * as transfer from "$lib/api/transfer";
-  import type { BackupInfo } from "$lib/types";
+  import * as security from "$lib/api/security";
+  import type { BackupInfo, CryptoStatus } from "$lib/types";
   import Icon from "./Icon.svelte";
 
   let backups = $state<BackupInfo[]>([]);
@@ -12,12 +13,38 @@
   let importText = $state("");
   let busy = $state(false);
 
+  let crypto = $state<CryptoStatus>({ mode: "dpapi", locked: false });
+  let pwd = $state("");
+  let pwd2 = $state("");
+
   $effect(() => {
-    if ($showSettings) refreshBackups();
+    if ($showSettings) { refreshBackups(); refreshCrypto(); }
   });
   async function refreshBackups() {
     try { backups = await backup.backupsList(); } catch { /* */ }
   }
+  async function refreshCrypto() {
+    try { crypto = await security.status(); } catch { /* */ }
+  }
+
+  async function enableMaster() {
+    if (pwd.length < 4) { pushToast("Пароль короткий", "минимум 4 символа", "error"); return; }
+    if (pwd !== pwd2) { pushToast("Пароли не совпадают", "", "error"); return; }
+    busy = true;
+    try { await security.enable(pwd); pwd = ""; pwd2 = ""; pushToast("Мастер-пароль включён", "секреты перешифрованы", "ok"); await refreshCrypto(); }
+    finally { busy = false; }
+  }
+  async function unlockMaster() {
+    busy = true;
+    try { await security.unlock(pwd); pwd = ""; pushToast("Разблокировано", "", "ok"); await refreshCrypto(); }
+    finally { busy = false; }
+  }
+  async function disableMaster() {
+    busy = true;
+    try { await security.disable(pwd); pwd = ""; pushToast("Мастер-пароль выключен", "секреты на DPAPI", "ok"); await refreshCrypto(); }
+    finally { busy = false; }
+  }
+  async function lockMaster() { await security.lock(); await refreshCrypto(); pushToast("Заблокировано", "", "info"); }
 
   async function doBackup() {
     busy = true;
@@ -52,6 +79,36 @@
         <button class="icon-btn x" onclick={() => showSettings.set(false)}><Icon name="x" class="ic" /></button>
       </div>
       <div class="modal-body">
+        <div class="field">
+          <label>Безопасность секретов</label>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:8px">
+            Режим: <b style="color:var(--text)">{crypto.mode === "master" ? "Мастер-пароль" : "DPAPI (Windows)"}</b>
+            {#if crypto.mode === "master"} · {crypto.locked ? "🔒 заблокировано" : "🔓 разблокировано"}{/if}
+          </div>
+
+          {#if crypto.mode === "dpapi"}
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <input class="tin" type="password" placeholder="Новый мастер-пароль" bind:value={pwd} />
+              <input class="tin" type="password" placeholder="Повторите пароль" bind:value={pwd2} />
+              <div><button class="btn-ghost" disabled={busy} onclick={enableMaster}><Icon name="lock" class="ic-sm" /> Включить мастер-пароль</button></div>
+              <small style="color:var(--muted-2)">Секреты будут шифроваться AES-256-GCM ключом из пароля (Argon2id). Забытый пароль = секреты не восстановить.</small>
+            </div>
+          {:else if crypto.locked}
+            <div style="display:flex;gap:6px;align-items:center">
+              <input class="tin" type="password" placeholder="Мастер-пароль" bind:value={pwd} onkeydown={(e) => { if (e.key==='Enter') unlockMaster(); }} />
+              <button class="btn-primary" disabled={busy} onclick={unlockMaster}><Icon name="lock-open" class="ic-sm" /> Разблокировать</button>
+            </div>
+          {:else}
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="btn-ghost" onclick={lockMaster}><Icon name="lock" class="ic-sm" /> Заблокировать сейчас</button>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input class="tin" type="password" placeholder="Текущий пароль" bind:value={pwd} />
+                <button class="btn-danger" disabled={busy} onclick={disableMaster}>Выключить мастер-пароль</button>
+              </div>
+            </div>
+          {/if}
+        </div>
+
         <div class="field">
           <label>Бэкап</label>
           <div style="display:flex;align-items:center;gap:10px">

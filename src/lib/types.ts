@@ -122,3 +122,5 @@ export type AttentionItem = {
 export type BackupInfo = { name: string; sizeBytes: number; createdEpoch: number };
 export type ImportSummary = { projects: number };
 export type ChecklistTemplate = { id: number; name: string; items: string[] };
+
+export type CryptoStatus = { mode: "dpapi" | "master"; locked: boolean };
