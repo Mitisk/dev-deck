@@ -6,6 +6,7 @@
   import * as transfer from "$lib/api/transfer";
   import * as security from "$lib/api/security";
   import type { BackupInfo, CryptoStatus } from "$lib/types";
+  import { save, open } from "@tauri-apps/plugin-dialog";
   import Icon from "./Icon.svelte";
 
   let backups = $state<BackupInfo[]>([]);
@@ -61,9 +62,21 @@
     finally { busy = false; }
   }
   async function doExport() {
+    const path = await save({ defaultPath: "devdeck-export.json", filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (!path) return;
     busy = true;
-    try { const p = await transfer.exportToFile(includeSecrets); pushToast("Экспортировано", p, "ok"); }
+    try { const p = await transfer.exportToPath(path, includeSecrets); pushToast("Экспортировано", p, "ok"); }
     finally { busy = false; }
+  }
+  async function doImportFile() {
+    const sel = await open({ multiple: false, filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (!sel || Array.isArray(sel)) return;
+    busy = true;
+    try {
+      const r = await transfer.importFromPath(sel);
+      pushToast("Импортировано", `${r.projects} проект(ов)`, "ok");
+      await loadProjects();
+    } finally { busy = false; }
   }
   async function doImport() {
     if (!importText.trim()) return;
@@ -137,12 +150,13 @@
             <button class="toggle" class:on={includeSecrets} onclick={() => (includeSecrets = !includeSecrets)} aria-pressed={includeSecrets} aria-label="секреты"></button>
             <div class="tl">Включить секреты<small>Расшифровать и положить в файл в открытом виде — только для переноса на доверенный ПК.</small></div>
           </div>
-          <button class="btn-ghost" disabled={busy} onclick={doExport}><Icon name="download" class="ic-sm" /> Экспорт в файл (exports/)</button>
+          <button class="btn-ghost" disabled={busy} onclick={doExport}><Icon name="download" class="ic-sm" /> Экспорт в файл…</button>
         </div>
 
         <div class="field">
-          <label for="imp">Импорт (вставьте JSON)</label>
-          <textarea id="imp" class="tin mono" style="min-height:120px" placeholder={'{ "version": 1, "projects": [...] }'} bind:value={importText}></textarea>
+          <label for="imp">Импорт</label>
+          <div style="margin-bottom:8px"><button class="btn-ghost" disabled={busy} onclick={doImportFile}><Icon name="folder-open" class="ic-sm" /> Импорт из файла…</button></div>
+          <textarea id="imp" class="tin mono" style="min-height:120px" placeholder={'или вставьте JSON: { "version": 1, "projects": [...] }'} bind:value={importText}></textarea>
           <div style="margin-top:8px"><button class="btn-primary" disabled={busy || !importText.trim()} onclick={doImport}><Icon name="upload" class="ic-sm" /> Импортировать</button></div>
         </div>
       </div>
