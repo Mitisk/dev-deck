@@ -223,3 +223,11 @@ pub struct BackupInfo {
 pub struct ImportSummary {
     pub projects: usize,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChecklistTemplate {
+    pub id: i64,
+    pub name: String,
+    pub items: Vec<String>,
+}
