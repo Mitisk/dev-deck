@@ -10,6 +10,7 @@
   import { pushToast } from "$lib/stores/toasts";
   import type { AttentionItem, AgendaItem } from "$lib/types";
   import Icon from "./Icon.svelte";
+  import ProjectIcon from "./ProjectIcon.svelte";
 
   const visible = $derived($projects.filter((p) => p.status !== "archived"));
   const pinned = $derived(visible.filter((p) => p.pinned));
@@ -89,7 +90,7 @@
         {#each pinned as p (p.id)}
           <div class="card dcard" style="--p-color:{p.color ?? 'var(--accent)'}" role="button" tabindex="0" onclick={() => open(p.id)}>
             <div class="top">
-              <span class="be">{p.icon ?? "📁"}</span>
+              <span class="be"><ProjectIcon icon={p.icon} size={26} /></span>
               <div style="min-width:0"><h3>{p.name}</h3><div class="pmeta">{p.path ?? statusLabel(p.status)}</div></div>
             </div>
             <div class="quick">
@@ -108,7 +109,7 @@
         {#each recentProjects as p (p.id)}
           <div class="card dcard" style="--p-color:{p.color ?? 'var(--accent)'}" role="button" tabindex="0" onclick={() => open(p.id)}>
             <div class="top">
-              <span class="be">{p.icon ?? "📁"}</span>
+              <span class="be"><ProjectIcon icon={p.icon} size={26} /></span>
               <div style="min-width:0"><h3>{p.name}</h3><div class="pmeta">{p.path ?? statusLabel(p.status)}</div></div>
             </div>
           </div>
@@ -141,7 +142,7 @@
       <div class="card att-card">
         {#each attention as a (a.projectId)}
           <div class="att-row" role="button" tabindex="0" onclick={() => open(a.projectId)}>
-            <span class="att-be" style="--p-color:{a.color ?? 'var(--accent)'}">{a.icon ?? "📁"}</span>
+            <span class="att-be" style="--p-color:{a.color ?? 'var(--accent)'}"><ProjectIcon icon={a.icon} size={22} /></span>
             <div class="att-main">
               <div class="att-line">
                 <span class="att-name">{a.name}</span>

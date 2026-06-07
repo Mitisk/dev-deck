@@ -6,6 +6,7 @@
   import { displayName, initials } from "$lib/stores/user";
   import { user } from "$lib/stores/user";
   import Icon from "./Icon.svelte";
+  import ProjectIcon from "./ProjectIcon.svelte";
 
   let query = $state("");
 
@@ -51,7 +52,7 @@
         <div class="proj" class:active={$activeProjectId === p.id}
              style="--p-color:{p.color ?? 'var(--accent)'}" role="button" tabindex="0"
              onclick={() => select(p.id)}>
-          {#if p.icon}<span class="emoji">{p.icon}</span>{:else}<span class="dot"></span>{/if}
+          {#if p.icon}<span class="emoji"><ProjectIcon icon={p.icon} size={16} /></span>{:else}<span class="dot"></span>{/if}
           <span class="nm">{p.name}</span>
           {#if $changedProjects.includes(p.id)}<span class="meta dirty" title="Изменения в папке"><span class="dot" style="--p-color:var(--git-dirty)"></span></span>{/if}
         </div>

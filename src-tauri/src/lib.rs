@@ -106,6 +106,7 @@ pub fn run() {
             commands::projects::projects_archive,
             commands::projects::project_set_pinned,
             commands::projects::project_set_sort,
+            commands::projects::project_import_icon,
             commands::actions::open_path,
             commands::actions::open_in_editor,
             commands::actions::open_terminal,

@@ -207,6 +207,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 .proj .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--p-color); flex: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-color) 18%, transparent); }
 .proj .emoji { font-size: 15px; line-height: 1; }
+.pi-img { object-fit: cover; border-radius: 5px; display: block; }
 .proj .nm { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .proj .meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
 .proj .meta.dirty { color: var(--git-dirty); }
@@ -705,6 +706,7 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .toggle-row .tl small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; }
 
 /* пикеры в настройках */
+.icon-preview { width: 42px; height: 42px; flex: none; border-radius: var(--r-md); display: grid; place-items: center; font-size: 24px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
 .set-pick-emoji { display: flex; gap: 6px; flex-wrap: wrap; }
 .set-pick-emoji .emoji-pick { width: 34px; height: 34px; font-size: 17px; }
 .set-pick-color { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

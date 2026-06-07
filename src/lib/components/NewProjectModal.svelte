@@ -5,6 +5,14 @@
   import * as projectsApi from "$lib/api/projects";
   import Icon from "./Icon.svelte";
   import PathInput from "./PathInput.svelte";
+  import ProjectIcon from "./ProjectIcon.svelte";
+  import { open } from "@tauri-apps/plugin-dialog";
+
+  async function pickIcon() {
+    const sel = await open({ multiple: false, filters: [{ name: "Изображения", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp"] }] });
+    if (!sel || Array.isArray(sel)) return;
+    try { emoji = await projectsApi.importIcon(sel); } catch { /* тост из api/client.ts */ }
+  }
 
   const EMOJI = ["🚀", "🎨", "📊", "🤖", "🛒", "📱", "⚙️", "🧪", "🔌", "📦", "🌐", "🔥"];
   const COLORS = ["#7c7dff", "#c77dff", "#3fb863", "#e0a83a", "#f0616d", "#5b9cff", "#19c3c0", "#ff8b5b"];
@@ -64,11 +72,18 @@
       </div>
       <div class="modal-body">
         <div class="field">
-          <label>Иконка</label>
-          <div class="picker">
-            {#each EMOJI as e}
-              <button class="emoji-pick" class:sel={emoji === e} onclick={() => (emoji = e)}>{e}</button>
-            {/each}
+          <label for="np-icon-url">Иконка <span style="color:var(--muted-2)">(эмодзи, URL favicon или файл)</span></label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="icon-preview"><ProjectIcon icon={emoji} size={30} /></span>
+            <div class="picker" style="flex:1">
+              {#each EMOJI as e}
+                <button class="emoji-pick" class:sel={emoji === e} onclick={() => (emoji = e)}>{e}</button>
+              {/each}
+            </div>
+          </div>
+          <div class="path-input" style="margin-top:8px">
+            <input id="np-icon-url" class="tin mono" placeholder="https://site.com/favicon.ico" bind:value={emoji} />
+            <button class="path-browse" type="button" title="Выбрать изображение…" onclick={pickIcon}><Icon name="image" class="ic-sm" /></button>
           </div>
         </div>
         <div class="field">

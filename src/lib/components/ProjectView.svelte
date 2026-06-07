@@ -11,6 +11,7 @@
   import NotesTab from "./NotesTab.svelte";
   import OverviewTab from "./OverviewTab.svelte";
   import GitBar from "./GitBar.svelte";
+  import ProjectIcon from "./ProjectIcon.svelte";
 
   let { project }: { project: Project } = $props();
 
@@ -33,7 +34,7 @@
 
 <div class="ws-inner" style="--p-color:{project.color ?? 'var(--accent)'}">
   <div class="proj-head">
-    <span class="big-emoji">{project.icon ?? "📁"}</span>
+    <span class="big-emoji"><ProjectIcon icon={project.icon} size={34} /></span>
     <div>
       <h1>{project.name}</h1>
       <div class="sub">

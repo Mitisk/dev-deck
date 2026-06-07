@@ -11,6 +11,8 @@
   import Icon from "./Icon.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import PathInput from "./PathInput.svelte";
+  import ProjectIcon from "./ProjectIcon.svelte";
+  import { open } from "@tauri-apps/plugin-dialog";
 
   let { project }: { project: Project } = $props();
 
@@ -114,6 +116,12 @@
     pushToast("Проект удалён", project.name, "ok");
   }
 
+  async function pickIcon() {
+    const sel = await open({ multiple: false, filters: [{ name: "Изображения", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp"] }] });
+    if (!sel || Array.isArray(sel)) return;
+    try { icon = await projectsApi.importIcon(sel); } catch { /* тост из api/client.ts */ }
+  }
+
   async function doClearDone() {
     confirmClearDone = false;
     const n = await tasksApi.deleteCompleted(project.id);
@@ -151,10 +159,17 @@
         <label for="st-tags">Теги (через запятую)</label>
         <input id="st-tags" class="tin mono" bind:value={tagsRaw} placeholder="rust, docker" />
       </div>
-      <div class="field">
-        <label>Иконка</label>
-        <div class="set-pick-emoji">
-          {#each EMOJI as e}<button class="emoji-pick" class:sel={icon === e} onclick={() => (icon = e)}>{e}</button>{/each}
+      <div class="field span-2">
+        <label for="st-icon-url">Иконка <span style="color:var(--muted-2)">(эмодзи, URL favicon или файл)</span></label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="icon-preview"><ProjectIcon icon={icon} size={30} /></span>
+          <div class="set-pick-emoji" style="flex:1">
+            {#each EMOJI as e}<button class="emoji-pick" class:sel={icon === e} onclick={() => (icon = e)}>{e}</button>{/each}
+          </div>
+        </div>
+        <div class="path-input" style="margin-top:8px">
+          <input id="st-icon-url" class="tin mono" placeholder="https://site.com/favicon.ico" bind:value={icon} />
+          <button class="path-browse" type="button" title="Выбрать изображение…" onclick={pickIcon}><Icon name="image" class="ic-sm" /></button>
         </div>
       </div>
       <div class="field">

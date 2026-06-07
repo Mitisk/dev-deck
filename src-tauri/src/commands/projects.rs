@@ -178,6 +178,33 @@ pub fn project_set_sort(state: State<AppState>, id: i64, sort_order: i64) -> App
     Ok(())
 }
 
+/// Скопировать выбранное изображение в каталог данных приложения и вернуть путь к копии.
+/// Используется как иконка проекта (показывается через asset-протокол).
+#[tauri::command]
+pub fn project_import_icon(app: tauri::AppHandle, src_path: String) -> AppResult<String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use tauri::Manager;
+
+    let src = std::path::Path::new(&src_path);
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError { kind: crate::error::ErrorKind::Io, message: format!("Каталог данных: {}", e) })?
+        .join("icons");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| AppError { kind: crate::error::ErrorKind::Io, message: format!("Папка иконок: {}", e) })?;
+    let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+    let dest = dir.join(format!("icon-{}.{}", stamp, ext));
+    std::fs::copy(src, &dest)
+        .map_err(|e| AppError { kind: crate::error::ErrorKind::Io, message: format!("Копирование иконки: {}", e) })?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
