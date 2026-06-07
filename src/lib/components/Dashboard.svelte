@@ -1,44 +1,133 @@
 <script lang="ts">
   import { projects, activeProjectId, projectsLoaded } from "$lib/stores/projects";
+  import { recents } from "$lib/stores/recents";
   import { showNewProject } from "$lib/stores/ui";
   import { USER } from "$lib/mock";
   import { statusLabel } from "$lib/format";
+  import * as dash from "$lib/api/dashboard";
+  import * as actions from "$lib/api/actions";
+  import * as git from "$lib/api/git";
+  import { pushToast } from "$lib/stores/toasts";
+  import type { AttentionItem } from "$lib/types";
   import Icon from "./Icon.svelte";
 
   const visible = $derived($projects.filter((p) => p.status !== "archived"));
   const pinned = $derived(visible.filter((p) => p.pinned));
-  const cards = $derived(pinned.length ? pinned : visible); // если ничего не закреплено — показываем все
+  const recentProjects = $derived(
+    $recents.map((id) => visible.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p).slice(0, 6),
+  );
+
+  let attention = $state<AttentionItem[]>([]);
+  async function loadAttention() {
+    try {
+      attention = await dash.attention();
+    } catch {
+      /* тост из api/client.ts */
+    }
+  }
+  $effect(() => {
+    // перезагружать при изменении набора проектов
+    void $projects.length;
+    loadAttention();
+  });
+
+  function open(id: number) {
+    activeProjectId.set(id);
+  }
+  function quick(e: MouseEvent, fn: () => Promise<unknown>) {
+    e.stopPropagation();
+    void fn();
+  }
+  async function pushProject(item: AttentionItem) {
+    const p = visible.find((x) => x.id === item.projectId);
+    const repo = p?.repoPath ?? p?.path;
+    if (!repo) return;
+    const r = await git.push(repo);
+    pushToast(r.ok ? "Push выполнен" : "Git: ошибка", r.output.split("\n").slice(-1).join(""), r.ok ? "ok" : "error");
+    await loadAttention();
+  }
+  function effRepo(id: number): string | null {
+    const p = visible.find((x) => x.id === id);
+    return p?.repoPath ?? p?.path ?? null;
+  }
+  function effPath(id: number): string | null {
+    const p = visible.find((x) => x.id === id);
+    return p?.path ?? null;
+  }
 </script>
 
 <div class="ws-inner dash">
   <div style="margin-bottom:22px">
     <div class="dash-hello">Привет, <span>{USER.name}</span></div>
-    <div class="dash-sub">{visible.length} {visible.length === 1 ? "проект" : "проектов"}</div>
+    <div class="dash-sub">{visible.length} {visible.length === 1 ? "проект" : "проектов"} · {attention.length} требуют внимания</div>
   </div>
 
   {#if $projectsLoaded && !visible.length}
     <div class="card" style="padding:40px;text-align:center;color:var(--muted)">
       <div style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px">Здесь пока пусто</div>
       <div style="margin-bottom:16px">Создайте первый проект, чтобы начать.</div>
-      <button class="btn-primary" onclick={() => showNewProject.set(true)}>
-        <Icon name="plus" class="ic ic-sm" /> Новый проект
-      </button>
+      <button class="btn-primary" onclick={() => showNewProject.set(true)}><Icon name="plus" class="ic ic-sm" /> Новый проект</button>
     </div>
   {:else}
-    <h3 class="section-title"><Icon name="star" class="ic-sm" /> {pinned.length ? "Закреплённые проекты" : "Проекты"}</h3>
-    <div class="dash-cards">
-      {#each cards as p (p.id)}
-        <div class="card dcard" style="--p-color:{p.color ?? 'var(--accent)'}" role="button" tabindex="0"
-             onclick={() => activeProjectId.set(p.id)}>
-          <div class="top">
-            <span class="be">{p.icon ?? "📁"}</span>
-            <div style="min-width:0">
-              <h3>{p.name}</h3>
-              <div class="pmeta">{p.path ?? statusLabel(p.status)}</div>
+    {#if pinned.length}
+      <h3 class="section-title"><Icon name="star" class="ic-sm" /> Закреплённые</h3>
+      <div class="dash-cards">
+        {#each pinned as p (p.id)}
+          <div class="card dcard" style="--p-color:{p.color ?? 'var(--accent)'}" role="button" tabindex="0" onclick={() => open(p.id)}>
+            <div class="top">
+              <span class="be">{p.icon ?? "📁"}</span>
+              <div style="min-width:0"><h3>{p.name}</h3><div class="pmeta">{p.path ?? statusLabel(p.status)}</div></div>
+            </div>
+            <div class="quick">
+              <button class="qbtn" disabled={!effPath(p.id)} onclick={(e) => quick(e, () => actions.openPath(effPath(p.id)!))}><Icon name="folder-open" class="ic-sm" /> Папка</button>
+              <button class="qbtn" disabled={!effPath(p.id)} onclick={(e) => quick(e, () => actions.openInEditor(effPath(p.id)!))}><Icon name="code-xml" class="ic-sm" /> Код</button>
+              <button class="qbtn" disabled={!effRepo(p.id)} onclick={(e) => quick(e, async () => { const r = await git.push(effRepo(p.id)!); pushToast(r.ok ? 'Push выполнен' : 'Git: ошибка', r.output.split('\n').slice(-1).join(''), r.ok ? 'ok' : 'error'); await loadAttention(); })}><Icon name="arrow-up" class="ic-sm" /> Push</button>
             </div>
           </div>
-        </div>
-      {/each}
+        {/each}
+      </div>
+    {/if}
+
+    {#if recentProjects.length}
+      <h3 class="section-title" style="margin-top:26px"><Icon name="history" class="ic-sm" /> Недавние</h3>
+      <div class="dash-cards">
+        {#each recentProjects as p (p.id)}
+          <div class="card dcard" style="--p-color:{p.color ?? 'var(--accent)'}" role="button" tabindex="0" onclick={() => open(p.id)}>
+            <div class="top">
+              <span class="be">{p.icon ?? "📁"}</span>
+              <div style="min-width:0"><h3>{p.name}</h3><div class="pmeta">{p.path ?? statusLabel(p.status)}</div></div>
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    <div style="margin-top:30px">
+      <h3 class="section-title"><Icon name="git-pull-request-arrow" class="ic-sm" /> Требуют внимания</h3>
+      <div class="card att-card">
+        {#each attention as a (a.projectId)}
+          <div class="att-row" role="button" tabindex="0" onclick={() => open(a.projectId)}>
+            <span class="att-be" style="--p-color:{a.color ?? 'var(--accent)'}">{a.icon ?? "📁"}</span>
+            <div class="att-main">
+              <div class="att-line">
+                <span class="att-name">{a.name}</span>
+                {#if a.branch}<span class="att-branch"><Icon name="git-branch" class="ic-sm" /> {a.branch}</span>{/if}
+                {#if a.dirty > 0}<span class="att-tag dirty"><Icon name="dot" class="ic-sm" />{a.dirty} изм.</span>
+                {:else}<span class="att-tag ahead">↑{a.ahead} к push</span>{/if}
+              </div>
+              {#if a.lastHash}<div class="att-msg"><span class="att-hash mono">{a.lastHash}</span> {a.lastMessage ?? ""}</div>{/if}
+            </div>
+            {#if a.dirty > 0}
+              <button class="att-act" onclick={(e) => { e.stopPropagation(); open(a.projectId); }}><Icon name="git-commit-horizontal" class="ic-sm" /> Открыть</button>
+            {:else}
+              <button class="att-act push" onclick={(e) => { e.stopPropagation(); pushProject(a); }}><Icon name="arrow-up" class="ic-sm" /> Push</button>
+            {/if}
+          </div>
+        {/each}
+        {#if !attention.length}
+          <div class="att-empty"><Icon name="check" class="ic-sm" /> Всё закоммичено и запушено — рабочие деревья чистые</div>
+        {/if}
+      </div>
     </div>
   {/if}
 </div>

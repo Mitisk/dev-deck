@@ -106,3 +106,15 @@ export type SearchHit = {
   title: string;
   subtitle: string;
 };
+
+export type AttentionItem = {
+  projectId: number;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  branch: string | null;
+  ahead: number;
+  dirty: number;
+  lastHash: string | null;
+  lastMessage: string | null;
+};
