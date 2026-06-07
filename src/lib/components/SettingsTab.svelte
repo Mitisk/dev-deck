@@ -1,13 +1,54 @@
 <script lang="ts">
-  import type { Project } from "$lib/types";
+  import type { Project, ProjectCommand, Link, FileShortcut } from "$lib/types";
   import { STATUS_OPTIONS } from "$lib/format";
   import { loadProjects, activeProjectId } from "$lib/stores/projects";
   import { pushToast } from "$lib/stores/toasts";
   import * as projectsApi from "$lib/api/projects";
+  import * as cmdsApi from "$lib/api/commands";
+  import * as linksApi from "$lib/api/links";
+  import * as filesApi from "$lib/api/files";
   import Icon from "./Icon.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
 
   let { project }: { project: Project } = $props();
+
+  let cmds = $state<ProjectCommand[]>([]);
+  let links = $state<Link[]>([]);
+  let files = $state<FileShortcut[]>([]);
+
+  // редактор команды
+  let cmdEditing = $state<ProjectCommand | null>(null);
+  let cmdNew = $state(false);
+  let cLabel = $state(""); let cCommand = $state(""); let cDir = $state(""); let cRunIn = $state("terminal");
+  // строки добавления
+  let newLink = $state({ label: "", url: "" });
+  let newFile = $state({ label: "", path: "" });
+
+  let extrasReq = 0;
+  async function loadExtras() {
+    const my = ++extrasReq;
+    try {
+      const [c, l, f] = await Promise.all([cmdsApi.list(project.id), linksApi.list(project.id), filesApi.list(project.id)]);
+      if (my === extrasReq) { cmds = c; links = l; files = f; }
+    } catch { /* тост из api/client.ts */ }
+  }
+  $effect(() => { project.id; loadExtras(); });
+
+  function openNewCmd() { cmdNew = true; cmdEditing = { id: 0, projectId: project.id, label: "", command: "", workingDir: null, runIn: "terminal", icon: "play", sortOrder: 0 }; cLabel = ""; cCommand = ""; cDir = ""; cRunIn = "terminal"; }
+  function openEditCmd(c: ProjectCommand) { cmdNew = false; cmdEditing = c; cLabel = c.label; cCommand = c.command; cDir = c.workingDir ?? ""; cRunIn = c.runIn ?? "terminal"; }
+  async function saveCmd() {
+    if (!cmdEditing || !cLabel.trim() || !cCommand.trim()) return;
+    const input = { label: cLabel.trim(), command: cCommand.trim(), workingDir: cDir.trim() || null, runIn: cRunIn, icon: "play" };
+    if (cmdNew) await cmdsApi.create(project.id, input);
+    else await cmdsApi.update(cmdEditing.id, input);
+    cmdEditing = null; await loadExtras();
+  }
+  async function delCmd() { if (!cmdEditing) return; const id = cmdEditing.id; cmdEditing = null; await cmdsApi.remove(id); await loadExtras(); }
+
+  async function addLink() { if (!newLink.label.trim() || !newLink.url.trim()) return; await linksApi.create(project.id, newLink.label.trim(), newLink.url.trim()); newLink = { label: "", url: "" }; await loadExtras(); }
+  async function delLink(id: number) { await linksApi.remove(id); await loadExtras(); }
+  async function addFile() { if (!newFile.label.trim() || !newFile.path.trim()) return; await filesApi.create(project.id, newFile.label.trim(), newFile.path.trim()); newFile = { label: "", path: "" }; await loadExtras(); }
+  async function delFile(id: number) { await filesApi.remove(id); await loadExtras(); }
 
   const EMOJI = ["🚀", "🎨", "📊", "🤖", "🛒", "📱", "⚙️", "🧪", "🔌", "📦", "🌐", "🔥"];
   const COLORS = ["#7c7dff", "#c77dff", "#3fb863", "#e0a83a", "#f0616d", "#5b9cff", "#19c3c0", "#ff8b5b"];
@@ -122,6 +163,63 @@
     </div>
   </div>
 
+  <div class="card set-card" style="margin-top:22px">
+    <h3 class="section-title"><Icon name="terminal" class="ic-sm" /> Команды
+      <button class="more" onclick={openNewCmd} style="margin-left:auto">+ команда</button></h3>
+    {#if cmds.length}
+      <div class="card links">
+        {#each cmds as c (c.id)}
+          <div class="link-row">
+            <span class="lico"><Icon name={c.icon ?? "play"} class="ic-sm" /></span>
+            <div style="flex:1;min-width:0">
+              <div class="lt">{c.label} <span style="color:var(--muted-2);font-size:11px">· {c.runIn === "background" ? "фон" : "терминал"}</span></div>
+              <div class="lu mono">{c.command}</div>
+            </div>
+            <button class="mini" title="Изменить" onclick={() => openEditCmd(c)}><Icon name="pencil" class="ic-sm" /></button>
+          </div>
+        {/each}
+      </div>
+    {:else}
+      <button class="add-cred" onclick={openNewCmd}><Icon name="plus" class="ic-sm" /> Добавить команду (напр. npm run dev)</button>
+    {/if}
+  </div>
+
+  <div class="card set-card" style="margin-top:22px">
+    <h3 class="section-title"><Icon name="link" class="ic-sm" /> Быстрые ссылки</h3>
+    <div class="card links">
+      {#each links as l (l.id)}
+        <div class="link-row">
+          <span class="lico"><Icon name={l.icon ?? "globe"} class="ic-sm" /></span>
+          <div style="flex:1;min-width:0"><div class="lt">{l.label}</div><div class="lu">{l.url}</div></div>
+          <button class="mini" title="Удалить" onclick={() => delLink(l.id)}><Icon name="x" class="ic-sm" /></button>
+        </div>
+      {/each}
+      <div class="erow" style="margin:8px 4px 4px">
+        <input class="tin" placeholder="Название" bind:value={newLink.label} />
+        <input class="tin url" placeholder="localhost:3000 / github.com/…" bind:value={newLink.url} onkeydown={(e) => { if (e.key === 'Enter') addLink(); }} />
+        <button class="er-del" style="color:var(--accent)" title="Добавить" onclick={addLink}><Icon name="plus" class="ic-sm" /></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card set-card" style="margin-top:22px">
+    <h3 class="section-title"><Icon name="folder" class="ic-sm" /> Файлы и папки</h3>
+    <div class="card links">
+      {#each files as f (f.id)}
+        <div class="link-row">
+          <span class="lico"><Icon name="file" class="ic-sm" /></span>
+          <div style="flex:1;min-width:0"><div class="lt">{f.label}</div><div class="lu">{f.path}</div></div>
+          <button class="mini" title="Удалить" onclick={() => delFile(f.id)}><Icon name="x" class="ic-sm" /></button>
+        </div>
+      {/each}
+      <div class="erow" style="margin:8px 4px 4px">
+        <input class="tin" placeholder="Название" bind:value={newFile.label} />
+        <input class="tin url" placeholder="~/dev/proj/.env" bind:value={newFile.path} onkeydown={(e) => { if (e.key === 'Enter') addFile(); }} />
+        <button class="er-del" style="color:var(--accent)" title="Добавить" onclick={addFile}><Icon name="plus" class="ic-sm" /></button>
+      </div>
+    </div>
+  </div>
+
   <div class="card set-card danger-zone" style="margin-top:22px">
     <h3 class="section-title">Опасная зона</h3>
     <div class="dz-row">
@@ -144,3 +242,32 @@
   confirmLabel="Удалить навсегда"
   onConfirm={doDelete}
   onCancel={() => (confirmDelete = false)} />
+
+{#if cmdEditing}
+  <div class="modal-scrim open" role="dialog" tabindex="-1" aria-label="Команда"
+       onmousedown={(e) => { if (e.currentTarget === e.target) (cmdEditing = null); }}
+       onkeydown={(e) => { if (e.key === 'Escape') (cmdEditing = null); }}>
+    <div class="modal">
+      <div class="modal-head"><span class="t">{cmdNew ? "Новая команда" : "Команда"}</span>
+        <button class="icon-btn x" onclick={() => (cmdEditing = null)}><Icon name="x" class="ic" /></button></div>
+      <div class="modal-body">
+        <div class="field"><label for="cm-label">Ярлык</label><input id="cm-label" class="tin" placeholder="Запустить dev" bind:value={cLabel} /></div>
+        <div class="field"><label for="cm-cmd">Команда (shell)</label><input id="cm-cmd" class="tin mono" placeholder="npm run dev" bind:value={cCommand} /></div>
+        <div class="field"><label for="cm-dir">Рабочая папка <span style="color:var(--muted-2)">(пусто = папка проекта)</span></label>
+          <input id="cm-dir" class="tin mono" placeholder={project.path ?? "~/dev/project"} bind:value={cDir} /></div>
+        <div class="field"><label for="cm-mode">Режим запуска</label>
+          <select id="cm-mode" class="tin" bind:value={cRunIn}>
+            <option value="terminal">В терминале (новое окно)</option>
+            <option value="background">В фоне (логи + стоп)</option>
+          </select></div>
+        <p class="desc" style="color:var(--muted-2);font-size:12px">Фоновый режим запускает процесс скрыто и стримит вывод в панель логов; «стоп» завершает дерево процессов. Запуск — во вкладке «Обзор».</p>
+      </div>
+      <div class="modal-foot">
+        {#if !cmdNew}<button class="btn-danger" onclick={delCmd}><Icon name="trash-2" class="ic-sm" /> Удалить</button>{/if}
+        <span class="spacer"></span>
+        <button class="btn-ghost" onclick={() => (cmdEditing = null)}>Отмена</button>
+        <button class="btn-primary" onclick={saveCmd}><Icon name="check" class="ic ic-sm" /> Сохранить</button>
+      </div>
+    </div>
+  </div>
+{/if}
