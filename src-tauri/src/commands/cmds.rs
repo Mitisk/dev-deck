@@ -183,13 +183,26 @@ pub fn command_run_bg(
     app: AppHandle,
     id: i64,
 ) -> AppResult<()> {
+    // Атомарно «застолбить» id перед спавном (sentinel pid=0), чтобы два
+    // одновременных запроса не породили два неотслеживаемых процесса.
     {
-        let map = running.procs.lock().map_err(|_| AppError::internal("proc mutex poisoned"))?;
+        let mut map = running.procs.lock().map_err(|_| AppError::internal("proc mutex poisoned"))?;
         if map.contains_key(&id) {
             return Err(AppError { kind: ErrorKind::Validation, message: "Команда уже запущена".into() });
         }
+        map.insert(id, 0);
     }
-    let (command, dir) = fetch_command(&state, id)?;
+    // Снять бронь, если до спавна что-то пошло не так (иначе id «залипнет» как запущенный).
+    let unreserve = || {
+        if let Ok(mut map) = running.procs.lock() {
+            map.remove(&id);
+        }
+    };
+
+    let (command, dir) = match fetch_command(&state, id) {
+        Ok(v) => v,
+        Err(e) => { unreserve(); return Err(e); }
+    };
 
     let mut cmd = Command::new("cmd");
     cmd.args(["/C", command.trim()]);
@@ -203,13 +216,18 @@ pub fn command_run_bg(
     cmd.stderr(Stdio::piped());
     cmd.creation_flags(CREATE_NO_WINDOW);
 
-    let mut child: Child = cmd
-        .spawn()
-        .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("Не удалось запустить команду: {}", e) })?;
+    let mut child: Child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            unreserve();
+            return Err(AppError { kind: ErrorKind::Io, message: format!("Не удалось запустить команду: {}", e) });
+        }
+    };
     let pid = child.id();
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
+    // Заменить sentinel на реальный pid.
     {
         let mut map = running.procs.lock().map_err(|_| AppError::internal("proc mutex poisoned"))?;
         map.insert(id, pid);
@@ -256,6 +274,10 @@ pub fn command_stop(running: State<RunningState>, id: i64) -> AppResult<()> {
     let Some(pid) = pid else {
         return Err(AppError { kind: ErrorKind::NotFound, message: "Команда не запущена".into() });
     };
+    if pid == 0 {
+        // ещё не заспавнено (sentinel) — убивать нечего
+        return Ok(());
+    }
     Command::new("taskkill")
         .args(["/PID", &pid.to_string(), "/T", "/F"])
         .creation_flags(CREATE_NO_WINDOW)
