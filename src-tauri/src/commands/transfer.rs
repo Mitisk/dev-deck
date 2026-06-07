@@ -256,6 +256,23 @@ pub fn export_to_file(state: State<AppState>, app: tauri::AppHandle, include_sec
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// Экспорт в выбранный пользователем файл (путь приходит из нативного диалога).
+#[tauri::command]
+pub fn export_to_path(state: State<AppState>, path: String, include_secrets: bool) -> AppResult<String> {
+    let json = export_json(state, include_secrets)?;
+    std::fs::write(&path, json)
+        .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("Запись файла: {}", e) })?;
+    Ok(path)
+}
+
+/// Импорт из выбранного пользователем файла (путь приходит из нативного диалога).
+#[tauri::command]
+pub fn import_from_path(state: State<AppState>, path: String) -> AppResult<ImportSummary> {
+    let json = std::fs::read_to_string(&path)
+        .map_err(|e| AppError { kind: ErrorKind::Io, message: format!("Чтение файла: {}", e) })?;
+    import_json(state, json)
+}
+
 #[tauri::command]
 pub fn import_json(state: State<AppState>, json: String) -> AppResult<ImportSummary> {
     let doc: ExportDoc = serde_json::from_str(&json)

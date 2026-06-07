@@ -26,6 +26,7 @@ fn show_main(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Каталог данных: %APPDATA%\com.devdeck.app\ (по identifier)
             let dir = app.path().app_data_dir()?;
@@ -171,6 +172,8 @@ pub fn run() {
             commands::templates::template_delete,
             commands::transfer::export_json,
             commands::transfer::export_to_file,
+            commands::transfer::export_to_path,
+            commands::transfer::import_from_path,
             commands::transfer::import_json,
             commands::security::crypto_status,
             commands::security::master_enable,
