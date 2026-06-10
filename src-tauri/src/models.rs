@@ -138,6 +138,7 @@ pub struct Credential {
     pub sort_order: i64,
     pub has_secret: bool,
     pub key_path: Option<String>,
+    pub is_global: bool,
 }
 
 #[derive(Debug, Deserialize)]

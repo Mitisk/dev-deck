@@ -15,7 +15,7 @@ fn row_to_cred(conn: &Connection, id: i64) -> AppResult<Credential> {
     Ok(conn.query_row(
         "SELECT id, project_id, label, type, username, url, notes, sort_order,
                 (secret_encrypted IS NOT NULL AND length(secret_encrypted) > 0),
-                key_path
+                key_path, is_global
          FROM credentials WHERE id = ?1",
         [id],
         |r| {
@@ -30,6 +30,7 @@ fn row_to_cred(conn: &Connection, id: i64) -> AppResult<Credential> {
                 sort_order: r.get(7)?,
                 has_secret: r.get::<_, i64>(8)? != 0,
                 key_path: r.get(9)?,
+                is_global: r.get::<_, i64>(10)? != 0,
             })
         },
     )?)
