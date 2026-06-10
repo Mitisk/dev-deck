@@ -188,7 +188,14 @@ fn set_cred_global(conn: &Connection, id: i64, is_global: bool) -> AppResult<()>
         "UPDATE credentials SET is_global=?2 WHERE id=?1",
         params![id, if is_global { 1i64 } else { 0 }],
     )?;
-    if !is_global {
+    if is_global {
+        // Сохранить текущую позицию в доме, чтобы кред не прыгнул в конец своего списка.
+        conn.execute(
+            "INSERT OR IGNORE INTO cred_order(cred_id, project_id, sort_order)
+             SELECT ?1, project_id, sort_order FROM credentials WHERE id = ?1",
+            params![id],
+        )?;
+    } else {
         conn.execute("DELETE FROM cred_order WHERE cred_id=?1", params![id])?;
     }
     Ok(())
@@ -408,6 +415,22 @@ mod tests {
         set_cred_global(&conn, g, true).unwrap();
         let isg2: i64 = conn.query_row("SELECT is_global FROM credentials WHERE id=?1", [g], |r| r.get(0)).unwrap();
         assert_eq!(isg2, 1);
+    }
+
+    #[test]
+    fn set_cred_global_pin_seeds_home_position() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let p = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'C','note',3,0)", [p]).unwrap();
+        let c = conn.last_insert_rowid();
+
+        set_cred_global(&conn, c, true).unwrap();
+
+        let pos: i64 = conn.query_row(
+            "SELECT sort_order FROM cred_order WHERE cred_id=?1 AND project_id=?2",
+            params![c, p], |r| r.get(0)).unwrap();
+        assert_eq!(pos, 3, "позиция в доме сохраняется при закреплении");
     }
 
     #[test]
