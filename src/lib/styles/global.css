@@ -792,6 +792,18 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .cl-del:hover, .cl-list-del:hover, .cred-del:hover { background: color-mix(in oklab, var(--danger) 14%, transparent); color: var(--danger); }
 .cred-head .cred-del { margin-left: auto; }
 
+/* drag-and-drop сортировка кредов */
+.cred-grip {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; padding: 0; color: var(--muted-2);
+  cursor: grab; flex: none;
+}
+.cred-grip:active { cursor: grabbing; }
+.cred-grip:hover { color: var(--text-2); }
+.cred-grip svg { pointer-events: none; }
+.cred.drop-before { box-shadow: inset 3px 0 0 var(--accent); }
+.cred.drop-after { box-shadow: inset -3px 0 0 var(--accent); }
+
 /* чеклист — строка добавления пункта */
 /* поле пути с кнопкой выбора каталога/файла */
 .path-input { display: flex; gap: 7px; align-items: center; }
