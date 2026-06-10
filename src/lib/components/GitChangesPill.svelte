@@ -15,20 +15,26 @@
   let data = $state<GitChanges | null>(null);
   let loading = $state(false);
   let error = $state(false);
-  let loadedFor = $state(""); // ключ кэша: repoPath + dirty
+  let loadedFor = $state(""); // ключ кэша: repoPath + dirty + staged
 
+  let loadReqId = 0;
   async function loadChanges() {
-    const key = `${repoPath}:${dirty}`;
+    // staged входит в ключ: при изменении распределения staged/unstaged
+    // (тот же total dirty) список файлов всё равно перезагрузится.
+    const key = `${repoPath}:${dirty}:${staged}`;
     if (loadedFor === key && data) return; // кэш свеж
+    const my = ++loadReqId;
     loading = true;
     error = false;
     try {
-      data = await git.changes(repoPath);
+      const result = await git.changes(repoPath);
+      if (my !== loadReqId) return; // пришёл более новый запрос — игнорируем
+      data = result;
       loadedFor = key;
     } catch {
-      error = true; // тост ошибки уже из client.ts
+      if (my === loadReqId) error = true; // тост ошибки уже из client.ts
     } finally {
-      loading = false;
+      if (my === loadReqId) loading = false;
     }
   }
 
@@ -38,7 +44,11 @@
   }
 
   function openFile(path: string) {
-    const full = repoPath.replace(/[\\/]+$/, "") + "/" + path;
+    // git отдаёт относительный путь через "/"; repoPath на Windows — через "\".
+    // Соединяем доминирующим разделителем, чтобы не плодить смешанный путь.
+    const base = repoPath.replace(/[\\/]+$/, "");
+    const sep = base.includes("\\") ? "\\" : "/";
+    const full = base + sep + path.replace(/\//g, sep);
     void actions.openFileInEditor(full);
   }
 
@@ -93,7 +103,7 @@
               {@const sp = splitPath(f.path)}
               <button class="gc-file" onclick={() => openFile(f.path)} title={f.path}>
                 <span class="gc-code {codeClass(f.code)}">{f.code}</span>
-                <span class="gc-path mono"><span class="dir">{sp.dir}</span>{sp.name}</span>
+                <span class="gc-path mono"><bdi><span class="dir">{sp.dir}</span>{sp.name}</bdi></span>
                 {#if f.staged}<span class="gc-staged">индекс</span>{/if}
               </button>
             {/each}
