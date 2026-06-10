@@ -791,7 +791,18 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .cl-del, .cl-list-del, .cred-del { width: 26px; height: 26px; flex: none; border-radius: 7px; border: 1px solid transparent; background: none; color: var(--muted-2); display: grid; place-items: center; opacity: 0; transition: var(--t); }
 .cl-item:hover .cl-del, .checklist:hover .cl-list-del, .cred:hover .cred-del { opacity: 1; }
 .cl-del:hover, .cl-list-del:hover, .cred-del:hover { background: color-mix(in oklab, var(--danger) 14%, transparent); color: var(--danger); }
-.cred-head .cred-del { margin-left: auto; }
+.cred-head .cred-acts { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.secret-row { display: flex; gap: 8px; align-items: center; }
+.secret-row > input.tin:first-child { flex: 1; min-width: 0; }
+.gen-len { width: 64px; flex: none; text-align: center; }
+.key-row { display: flex; gap: 8px; align-items: center; }
+.key-row > input.tin { flex: 1; min-width: 0; }
+.pw-meter { display: flex; gap: 4px; margin-top: 6px; }
+.pw-meter .seg { height: 4px; flex: 1; border-radius: 2px; background: var(--surface-3); }
+.pw-meter[data-score="1"] .seg.on { background: var(--danger); }
+.pw-meter[data-score="2"] .seg.on { background: var(--git-dirty); }
+.pw-meter[data-score="3"] .seg.on { background: var(--git-dirty); }
+.pw-meter[data-score="4"] .seg.on { background: var(--git-ahead); }
 
 /* drag-and-drop сортировка кредов */
 .cred-grip {

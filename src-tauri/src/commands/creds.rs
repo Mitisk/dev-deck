@@ -2,7 +2,8 @@ use crate::commands::security::{decrypt_secret, encrypt_secret};
 use crate::error::{AppError, AppResult, ErrorKind};
 use crate::models::{CredInput, Credential};
 use crate::state::AppState;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
+use std::process::Command;
 use std::sync::MutexGuard;
 use tauri::State;
 
@@ -13,7 +14,8 @@ fn lock<'a>(state: &'a State<AppState>) -> AppResult<MutexGuard<'a, Connection>>
 fn row_to_cred(conn: &Connection, id: i64) -> AppResult<Credential> {
     Ok(conn.query_row(
         "SELECT id, project_id, label, type, username, url, notes, sort_order,
-                (secret_encrypted IS NOT NULL AND length(secret_encrypted) > 0)
+                (secret_encrypted IS NOT NULL AND length(secret_encrypted) > 0),
+                key_path
          FROM credentials WHERE id = ?1",
         [id],
         |r| {
@@ -27,6 +29,7 @@ fn row_to_cred(conn: &Connection, id: i64) -> AppResult<Credential> {
                 notes: r.get(6)?,
                 sort_order: r.get(7)?,
                 has_secret: r.get::<_, i64>(8)? != 0,
+                key_path: r.get(9)?,
             })
         },
     )?)
@@ -81,8 +84,8 @@ pub fn creds_create(state: State<AppState>, project_id: i64, input: CredInput) -
         _ => None,
     };
     conn.execute(
-        "INSERT INTO credentials(project_id, label, type, username, url, secret_encrypted, notes, sort_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO credentials(project_id, label, type, username, url, secret_encrypted, notes, sort_order, key_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             project_id,
             input.label.trim(),
@@ -92,6 +95,7 @@ pub fn creds_create(state: State<AppState>, project_id: i64, input: CredInput) -
             secret_blob,
             input.notes,
             next,
+            input.key_path,
         ],
     )?;
     row_to_cred(&conn, conn.last_insert_rowid())
@@ -102,9 +106,9 @@ pub fn creds_update(state: State<AppState>, id: i64, input: CredInput) -> AppRes
     validate(&input)?;
     let conn = lock(&state)?;
     let n = conn.execute(
-        "UPDATE credentials SET label=?2, type=?3, username=?4, url=?5, notes=?6, updated_at=datetime('now')
+        "UPDATE credentials SET label=?2, type=?3, username=?4, url=?5, notes=?6, key_path=?7, updated_at=datetime('now')
          WHERE id=?1",
-        params![id, input.label.trim(), input.kind, input.username, input.url, input.notes],
+        params![id, input.label.trim(), input.kind, input.username, input.url, input.notes, input.key_path],
     )?;
     if n == 0 {
         return Err(AppError { kind: ErrorKind::NotFound, message: "Кред не найден".into() });
@@ -137,6 +141,94 @@ pub fn creds_reorder(state: State<AppState>, project_id: i64, ids: Vec<i64>) -> 
     }
     tx.commit()?;
     Ok(())
+}
+
+/// Разбить ssh-цель на host и хвостовой :port (порт — только если все цифры).
+fn split_host_port(target: &str) -> (&str, Option<&str>) {
+    if let Some(idx) = target.rfind(':') {
+        let (h, p) = (&target[..idx], &target[idx + 1..]);
+        // Порт извлекаем, только если хвост — цифры И слева не «голый» IPv6
+        // (в голом IPv6 есть `:`; bracketed-форма `[..]` заканчивается на `]`).
+        let host_ok = !h.contains(':') || h.ends_with(']');
+        if !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) && host_ok {
+            return (h, Some(p));
+        }
+    }
+    (target, None)
+}
+
+/// argv для putty (без имени программы). Политика «ключ → опц. пароль»:
+/// есть key_path → `-i key` (пароль НЕ передаём); иначе есть пароль → `-pw`.
+fn build_putty_args(target: &str, key_path: Option<&str>, password: Option<&str>) -> Vec<String> {
+    let (host, port) = split_host_port(target);
+    let mut args = vec!["-ssh".to_string(), host.to_string()];
+    if let Some(p) = port {
+        args.push("-P".to_string());
+        args.push(p.to_string());
+    }
+    if let Some(k) = key_path.filter(|s| !s.trim().is_empty()) {
+        args.push("-i".to_string());
+        args.push(k.to_string());
+    } else if let Some(pw) = password.filter(|s| !s.is_empty()) {
+        args.push("-pw".to_string());
+        args.push(pw.to_string());
+    }
+    args
+}
+
+/// Запустить putty.exe: PATH → стандартные пути установки.
+fn spawn_putty(args: &[String]) -> AppResult<()> {
+    const CANDIDATES: [&str; 3] = [
+        "putty.exe",
+        r"C:\Program Files\PuTTY\putty.exe",
+        r"C:\Program Files (x86)\PuTTY\putty.exe",
+    ];
+    for exe in CANDIDATES {
+        if Command::new(exe).args(args).spawn().is_ok() {
+            return Ok(());
+        }
+    }
+    Err(AppError {
+        kind: ErrorKind::NotFound,
+        message: "PuTTY не найден. Установите PuTTY или добавьте putty.exe в PATH.".into(),
+    })
+}
+
+/// Открыть кред в PuTTY. Секрет расшифровывается на бэке и во фронт не уходит.
+#[tauri::command]
+pub fn launch_putty(state: State<AppState>, id: i64) -> AppResult<()> {
+    let conn = lock(&state)?;
+    let (username, key_path): (Option<String>, Option<String>) = conn
+        .query_row(
+            "SELECT username, key_path FROM credentials WHERE id=?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .ok_or_else(|| AppError { kind: ErrorKind::NotFound, message: "Кред не найден".into() })?;
+    let target = username.unwrap_or_default();
+    if target.trim().is_empty() {
+        return Err(AppError {
+            kind: ErrorKind::Validation,
+            message: "У креда не указан хост (поле «Логин / хост»)".into(),
+        });
+    }
+    let has_key = key_path.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+    let password: Option<String> = if has_key {
+        None
+    } else {
+        let blob: Option<Vec<u8>> =
+            conn.query_row("SELECT secret_encrypted FROM credentials WHERE id=?1", [id], |r| r.get(0))?;
+        match blob {
+            Some(b) if !b.is_empty() => {
+                let plain = decrypt_secret(&conn, &state.master_key, &b)?;
+                Some(String::from_utf8_lossy(&plain).into_owned())
+            }
+            _ => None,
+        }
+    };
+    let args = build_putty_args(target.trim(), key_path.as_deref(), password.as_deref());
+    spawn_putty(&args)
 }
 
 #[cfg(test)]
@@ -179,6 +271,40 @@ mod tests {
         assert_eq!(cred.label, "Stripe");
         assert_eq!(cred.kind, "api_key");
         assert!(cred.has_secret);
+    }
+
+    #[test]
+    fn split_host_port_parses_numeric_tail() {
+        assert_eq!(split_host_port("root@h:2222"), ("root@h", Some("2222")));
+        assert_eq!(split_host_port("host"), ("host", None));
+        assert_eq!(split_host_port("host:abc"), ("host:abc", None));
+    }
+
+    #[test]
+    fn split_host_port_handles_ipv6() {
+        // голый IPv6 — порт не извлекаем
+        assert_eq!(split_host_port("::1"), ("::1", None));
+        assert_eq!(split_host_port("fe80::1"), ("fe80::1", None));
+        // bracketed IPv6 с портом — извлекаем
+        assert_eq!(split_host_port("[::1]:22"), ("[::1]", Some("22")));
+    }
+
+    #[test]
+    fn build_putty_args_prefers_key_over_password() {
+        let a = build_putty_args("root@1.2.3.4", Some("k.ppk"), Some("pw"));
+        assert_eq!(a, vec!["-ssh", "root@1.2.3.4", "-i", "k.ppk"]);
+        assert!(!a.iter().any(|x| x == "-pw"));
+    }
+
+    #[test]
+    fn build_putty_args_uses_password_when_no_key() {
+        let a = build_putty_args("host:2222", None, Some("secret"));
+        assert_eq!(a, vec!["-ssh", "host", "-P", "2222", "-pw", "secret"]);
+    }
+
+    #[test]
+    fn build_putty_args_bare_host() {
+        assert_eq!(build_putty_args("host", None, None), vec!["-ssh", "host"]);
     }
 
     #[test]

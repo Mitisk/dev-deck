@@ -137,6 +137,7 @@ pub struct Credential {
     pub notes: Option<String>,
     pub sort_order: i64,
     pub has_secret: bool,
+    pub key_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -150,6 +151,7 @@ pub struct CredInput {
     pub notes: Option<String>,
     /// None = не менять секрет (при update); Some("") = очистить; Some(x) = задать.
     pub secret: Option<String>,
+    pub key_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
