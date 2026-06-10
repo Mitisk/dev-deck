@@ -43,16 +43,35 @@ fn validate(input: &CredInput) -> AppResult<()> {
     Ok(())
 }
 
+/// id кредов проекта: локальные (project_id) + все глобальные. Порядок:
+/// локальные — по credentials.sort_order; глобальные — по cred_order проекта,
+/// без строки — в конец.
+fn list_cred_ids(conn: &Connection, project_id: i64) -> AppResult<Vec<i64>> {
+    let mut stmt = conn.prepare(
+        "SELECT c.id
+         FROM credentials c
+         LEFT JOIN cred_order o ON o.cred_id = c.id AND o.project_id = ?1
+         WHERE c.project_id = ?1 OR c.is_global = 1
+         ORDER BY (CASE WHEN c.is_global = 1
+                        THEN COALESCE(o.sort_order, 1000000000)
+                        ELSE c.sort_order END) ASC,
+                  c.id ASC",
+    )?;
+    let rows = stmt.query_map([project_id], |r| r.get::<_, i64>(0))?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
 #[tauri::command]
 pub fn creds_list(state: State<AppState>, project_id: i64) -> AppResult<Vec<Credential>> {
     let conn = lock(&state)?;
-    let mut stmt = conn.prepare(
-        "SELECT id FROM credentials WHERE project_id = ?1 ORDER BY sort_order ASC, id ASC",
-    )?;
-    let ids = stmt.query_map([project_id], |r| r.get::<_, i64>(0))?;
+    let ids = list_cred_ids(&conn, project_id)?;
     let mut out = Vec::new();
     for id in ids {
-        out.push(row_to_cred(&conn, id?)?);
+        out.push(row_to_cred(&conn, id)?);
     }
     Ok(out)
 }
@@ -306,6 +325,26 @@ mod tests {
     #[test]
     fn build_putty_args_bare_host() {
         assert_eq!(build_putty_args("host", None, None), vec!["-ssh", "host"]);
+    }
+
+    #[test]
+    fn list_cred_ids_merges_local_and_global() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P1','active',0)", []).unwrap();
+        let p1 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P2','active',0)", []).unwrap();
+        let p2 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'A','note',0,0)", [p1]).unwrap();
+        let a = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'G','note',0,1)", [p1]).unwrap();
+        let g = conn.last_insert_rowid();
+
+        let p1_ids = list_cred_ids(&conn, p1).unwrap();
+        assert!(p1_ids.contains(&a), "P1 должен видеть локальный A");
+        assert!(p1_ids.contains(&g), "P1 должен видеть глобальный G");
+
+        let p2_ids = list_cred_ids(&conn, p2).unwrap();
+        assert_eq!(p2_ids, vec![g], "P2 видит только глобальный G");
     }
 
     #[test]
