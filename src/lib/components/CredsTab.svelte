@@ -141,6 +141,16 @@
     await load();
   }
 
+  async function openPutty(id: number) {
+    try {
+      await actions.launchPutty(id);
+    } catch (e) {
+      if ((e as { kind?: string }).kind === "locked")
+        pushToast("Заблокировано", "Разблокируйте мастер-паролем в Настройках", "error");
+      // прочие ошибки уже показал api/client.ts
+    }
+  }
+
   // --- drag-and-drop сортировка (только при пустом поиске) ---
   let dragId = $state<number | null>(null);
   let overId = $state<number | null>(null); // карточка под курсором
@@ -229,9 +239,12 @@
         {/if}
         <span class="t">{c.label}</span>
         <span class="badge-type" style="color:var(--accent);background:var(--accent-soft)">{typeLabel(c.type)}</span>
-        <button class="mini cred-del" style="margin-left:auto" title="Редактировать" onclick={() => openEdit(c)}>
-          <Icon name="pencil" class="ic-sm" />
-        </button>
+        <span class="cred-acts">
+          {#if c.type === 'ssh'}
+            <button class="mini" title="Открыть в PuTTY" onclick={() => openPutty(c.id)}><Icon name="square-terminal" class="ic-sm" /></button>
+          {/if}
+          <button class="mini cred-del" title="Редактировать" onclick={() => openEdit(c)}><Icon name="pencil" class="ic-sm" /></button>
+        </span>
       </div>
       {#if c.username}
         <div class="cred-row">
@@ -259,6 +272,13 @@
               <Icon name="copy" class="ic-sm" />
             </button>
           </span>
+        </div>
+      {/if}
+      {#if c.keyPath}
+        <div class="cred-row">
+          <span class="k">Ключ</span>
+          <span class="val mono">{c.keyPath}</span>
+          <span class="acts"><button class="mini" title="Копировать" onclick={() => copy(c.keyPath ?? '')}><Icon name="copy" class="ic-sm" /></button></span>
         </div>
       {/if}
       {#if c.notes}<div class="cred-row"><span class="k">Заметка</span><span class="val">{c.notes}</span></div>{/if}
