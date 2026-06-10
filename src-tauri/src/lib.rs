@@ -112,6 +112,7 @@ pub fn run() {
             commands::actions::open_in_editor,
             commands::actions::open_terminal,
             commands::actions::open_url,
+            commands::actions::open_file_in_editor,
             commands::git::git_status,
             commands::git::git_fetch,
             commands::git::git_pull,

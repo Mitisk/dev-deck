@@ -70,6 +70,19 @@ pub fn open_in_editor(path: String) -> AppResult<()> {
     spawn(cmd, "редактор (code)")
 }
 
+/// Открыть конкретный файл в редакторе (VS Code). В отличие от open_in_editor
+/// (валидирует папку), здесь путь — файл, поэтому require_dir_or_file.
+#[tauri::command]
+pub fn open_file_in_editor(path: String) -> AppResult<()> {
+    let p = require_dir_or_file(&path)?;
+    if Command::new("code.cmd").arg(&p).spawn().is_ok() {
+        return Ok(());
+    }
+    let mut cmd = Command::new("cmd");
+    cmd.args(["/C", "code", &p]);
+    spawn(cmd, "редактор (code)")
+}
+
 /// Открыть терминал в папке: Windows Terminal `wt -d <path>` (путь — отдельный аргумент);
 /// при неудаче — новое окно `cmd` с рабочей папкой через `current_dir` (без интерполяции
 /// пути в командную строку — shell не задействован).
@@ -138,6 +151,12 @@ mod tests {
         assert_eq!(expand_path("~"), "C:\\Users\\test");
         assert_eq!(expand_path("~/dev/proj"), "C:\\Users\\test\\dev\\proj");
         assert_eq!(expand_path("~\\dev\\proj"), "C:\\Users\\test\\dev\\proj");
+    }
+
+    #[test]
+    fn open_file_in_editor_rejects_missing_path() {
+        let res = super::open_file_in_editor("Z:\\definitely\\missing\\file.txt".into());
+        assert!(res.is_err(), "ожидали ошибку для несуществующего файла");
     }
 
     #[test]
