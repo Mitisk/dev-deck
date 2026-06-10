@@ -100,7 +100,10 @@ fn changes_of(repo: &Repository) -> AppResult<GitChanges> {
 
     // Список файлов из того же statuses(), что и status_of.
     let mut opts = StatusOptions::new();
-    opts.include_untracked(true).include_ignored(false);
+    opts.include_untracked(true)
+        .include_ignored(false)
+        .renames_head_to_index(true)
+        .renames_index_to_workdir(true);
     let statuses = repo.statuses(Some(&mut opts))?;
 
     let mut files = Vec::new();
