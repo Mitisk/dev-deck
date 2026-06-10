@@ -182,6 +182,28 @@ pub fn creds_reorder(state: State<AppState>, project_id: i64, ids: Vec<i64>) -> 
     Ok(())
 }
 
+/// Поставить/снять флаг «глобальный». При снятии чистим позиции в cred_order.
+fn set_cred_global(conn: &Connection, id: i64, is_global: bool) -> AppResult<()> {
+    conn.execute(
+        "UPDATE credentials SET is_global=?2 WHERE id=?1",
+        params![id, if is_global { 1i64 } else { 0 }],
+    )?;
+    if !is_global {
+        conn.execute("DELETE FROM cred_order WHERE cred_id=?1", params![id])?;
+    }
+    Ok(())
+}
+
+/// Закрепить/открепить кред (показывать во всех проектах). Возвращает обновлённый кред.
+#[tauri::command]
+pub fn creds_set_global(state: State<AppState>, id: i64, is_global: bool) -> AppResult<Credential> {
+    let conn = lock(&state)?;
+    let tx = conn.unchecked_transaction()?;
+    set_cred_global(&conn, id, is_global)?;
+    tx.commit()?;
+    row_to_cred(&conn, id)
+}
+
 /// Разбить ssh-цель на host и хвостовой :port (порт — только если все цифры).
 fn split_host_port(target: &str) -> (&str, Option<&str>) {
     if let Some(idx) = target.rfind(':') {
@@ -364,6 +386,28 @@ mod tests {
 
         let p2_ids = list_cred_ids(&conn, p2).unwrap();
         assert_eq!(p2_ids, vec![g], "P2 видит только глобальный G");
+    }
+
+    #[test]
+    fn set_cred_global_toggles_and_cleans_order() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let p = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'G','note',0,1)", [p]).unwrap();
+        let g = conn.last_insert_rowid();
+        conn.execute("INSERT INTO cred_order(cred_id,project_id,sort_order) VALUES(?1,?2,5)", params![g, p]).unwrap();
+
+        // открепить
+        set_cred_global(&conn, g, false).unwrap();
+        let isg: i64 = conn.query_row("SELECT is_global FROM credentials WHERE id=?1", [g], |r| r.get(0)).unwrap();
+        assert_eq!(isg, 0);
+        let cnt: i64 = conn.query_row("SELECT count(*) FROM cred_order WHERE cred_id=?1", [g], |r| r.get(0)).unwrap();
+        assert_eq!(cnt, 0, "cred_order должен очиститься при откреплении");
+
+        // закрепить обратно
+        set_cred_global(&conn, g, true).unwrap();
+        let isg2: i64 = conn.query_row("SELECT is_global FROM credentials WHERE id=?1", [g], |r| r.get(0)).unwrap();
+        assert_eq!(isg2, 1);
     }
 
     #[test]
