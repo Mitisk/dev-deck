@@ -8,6 +8,7 @@ export type CredInput = {
   url?: string | null;
   notes?: string | null;
   secret?: string | null; // undefined/null = не менять (при update)
+  keyPath?: string | null;
 };
 
 export const list = (projectId: number) => call<Credential[]>("creds_list", { projectId });

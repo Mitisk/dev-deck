@@ -93,6 +93,7 @@ export type Credential = {
   notes: string | null;
   sortOrder: number;
   hasSecret: boolean;
+  keyPath: string | null;
 };
 
 export type Note = {

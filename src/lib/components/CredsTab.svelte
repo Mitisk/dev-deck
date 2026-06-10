@@ -90,7 +90,7 @@
 
   function openNew() {
     isNew = true;
-    editing = { id: 0, projectId: project.id, label: "", type: "login", username: null, url: null, notes: null, sortOrder: 0, hasSecret: false };
+    editing = { id: 0, projectId: project.id, label: "", type: "login", username: null, url: null, notes: null, sortOrder: 0, hasSecret: false, keyPath: null };
     fLabel = ""; fType = "login"; fUser = ""; fUrl = ""; fNotes = ""; fSecret = "";
   }
   function openEdit(c: Credential) {
