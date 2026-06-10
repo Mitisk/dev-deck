@@ -94,6 +94,7 @@ export type Credential = {
   sortOrder: number;
   hasSecret: boolean;
   keyPath: string | null;
+  isGlobal: boolean;
 };
 
 export type Note = {
