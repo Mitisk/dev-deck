@@ -3,6 +3,7 @@
   import * as git from "$lib/api/git";
   import { pushToast } from "$lib/stores/toasts";
   import Icon from "./Icon.svelte";
+  import GitChangesPill from "./GitChangesPill.svelte";
 
   let { repoPath }: { repoPath: string | null } = $props();
 
@@ -79,7 +80,7 @@
     </div>
     <div class="git-sep"></div>
     {#if st.dirty > 0}
-      <span class="dirty-count"><span class="led"></span>{st.dirty} изм.{#if st.staged > 0} · {st.staged} в индексе{/if}</span>
+      <GitChangesPill repoPath={repoPath!} dirty={st.dirty} staged={st.staged} untracked={st.untracked} />
     {:else}
       <span class="last-commit"><Icon name="check" class="ic-sm" /> чисто</span>
     {/if}
@@ -107,9 +108,5 @@
         <Icon name="arrow-up" class="ic-sm" /> {busy === "push" ? "…" : "Push"}
       </button>
     </div>
-  </div>
-{:else if loaded && repoPath}
-  <div class="git-bar">
-    <span class="last-commit" style="color:var(--muted-2)"><Icon name="git-branch" class="ic-sm" /> Не git-репозиторий</span>
   </div>
 {/if}

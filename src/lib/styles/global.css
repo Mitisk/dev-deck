@@ -278,6 +278,64 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .aheadbehind .b { color: var(--muted); }
 .dirty-count { font-size: 12px; color: var(--git-dirty); display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
 .dirty-count .led { width: 7px; height: 7px; border-radius: 99px; background: var(--git-dirty); }
+
+/* Git changes — пилюля + попап */
+.gc-wrap { position: relative; display: inline-flex; }
+.gc-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 99px; padding: 3px 9px; color: var(--text-2);
+}
+.gc-pill:hover, .gc-pill.open { border-color: var(--git-dirty); }
+.gc-cat { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); }
+.gc-cat.mod { color: var(--git-dirty); }
+.gc-cat.unt { color: var(--accent); }
+.gc-cat.stg { color: var(--git-ahead); }
+.gc-pill .gc-caret { color: var(--muted); transition: transform .15s; }
+.gc-pill.open .gc-caret { transform: rotate(180deg); }
+
+.gc-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 40;
+  min-width: 280px; max-width: 440px; max-height: 320px; overflow: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 8px;
+}
+.gc-msg { font-size: 12px; color: var(--muted); padding: 8px 6px; }
+.gc-stat {
+  display: flex; gap: 12px; font-family: var(--font-mono); font-size: 12px;
+  padding: 4px 6px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
+}
+.gc-stat .ins { color: var(--git-ahead); }
+.gc-stat .del { color: var(--danger); }
+.gc-list { display: flex; flex-direction: column; gap: 1px; }
+.gc-file {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: transparent; border: 0; cursor: pointer; text-align: left;
+  padding: 4px 6px; border-radius: 7px; color: var(--text-2);
+}
+.gc-file:hover { background: var(--surface-2); }
+.gc-code {
+  flex: none; width: 18px; height: 18px; border-radius: 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+}
+.gc-code.c-m { color: var(--git-dirty); background: color-mix(in oklab, var(--git-dirty) 16%, transparent); }
+.gc-code.c-a { color: var(--git-ahead); background: color-mix(in oklab, var(--git-ahead) 16%, transparent); }
+.gc-code.c-new { color: var(--accent); background: color-mix(in oklab, var(--accent) 16%, transparent); }
+.gc-code.c-d { color: var(--danger); background: color-mix(in oklab, var(--danger) 16%, transparent); }
+.gc-code.c-r, .gc-code.c-t { color: var(--muted); background: var(--surface-2); }
+.gc-path {
+  flex: 1; min-width: 0; font-size: 12px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left;
+}
+.gc-path .dir { color: var(--muted-2); }
+.gc-staged {
+  flex: none; font-size: 10px; color: var(--git-ahead);
+  background: color-mix(in oklab, var(--git-ahead) 14%, transparent);
+  border-radius: 5px; padding: 1px 6px;
+}
+
 .last-commit { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .last-commit .hash { font-family: var(--font-mono); color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
 .last-commit .msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }

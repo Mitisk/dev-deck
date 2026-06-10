@@ -6,6 +6,7 @@
   import * as transfer from "$lib/api/transfer";
   import * as security from "$lib/api/security";
   import { user, loadUser } from "$lib/stores/user";
+  import { features, toggleFeature } from "$lib/stores/features";
   import * as userApi from "$lib/api/user";
   import type { BackupInfo, CryptoStatus } from "$lib/types";
   import { save, open } from "@tauri-apps/plugin-dialog";
@@ -121,6 +122,23 @@
             <div class="field"><label for="u-handle">Хэндл <span style="color:var(--muted-2)">(необязательно)</span></label><input id="u-handle" class="tin mono" placeholder="@nick" bind:value={uHandle} /></div>
           </div>
           <div style="margin-top:8px"><button class="btn-ghost" disabled={busy} onclick={saveProfile}><Icon name="user" class="ic-sm" /> Сохранить профиль</button></div>
+        </div>
+
+        <div class="field">
+          <label>Разделы проекта</label>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:8px">Выключенные вкладки скрываются в карточке проекта.</div>
+          <div class="toggle-row">
+            <button class="toggle" class:on={$features.tasks} onclick={() => toggleFeature("tasks")} aria-pressed={$features.tasks} aria-label="Задачи"></button>
+            <div class="tl">Задачи<small>Доска задач проекта.</small></div>
+          </div>
+          <div class="toggle-row" style="margin-top:8px">
+            <button class="toggle" class:on={$features.checklists} onclick={() => toggleFeature("checklists")} aria-pressed={$features.checklists} aria-label="Чеклисты"></button>
+            <div class="tl">Чеклисты<small>Списки шагов и подготовки.</small></div>
+          </div>
+          <div class="toggle-row" style="margin-top:8px">
+            <button class="toggle" class:on={$features.creds} onclick={() => toggleFeature("creds")} aria-pressed={$features.creds} aria-label="Креды"></button>
+            <div class="tl">Креды<small>Секреты и доступы проекта.</small></div>
+          </div>
         </div>
 
         <div class="field">

@@ -37,6 +37,18 @@ export type GitStatus = {
 
 export type GitOpResult = { ok: boolean; output: string };
 
+export type GitFile = {
+  path: string;
+  code: string; // M | A | D | R | T | ?
+  staged: boolean;
+};
+
+export type GitChanges = {
+  insertions: number;
+  deletions: number;
+  files: GitFile[];
+};
+
 // Статус задачи = ключ колонки канбана. Дефолтные — todo/doing/done; кастомные — c{id}.
 export type TaskStatus = string;
 export type Task = {
