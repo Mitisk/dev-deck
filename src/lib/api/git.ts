@@ -1,8 +1,11 @@
 import { call } from "./client";
-import type { GitStatus, GitOpResult } from "../types";
+import type { GitStatus, GitOpResult, GitChanges } from "../types";
 
 // null = путь пуст или не git-репозиторий.
 export const status = (repoPath: string) => call<GitStatus | null>("git_status", { repoPath });
+
+// null = путь пуст или не git-репозиторий.
+export const changes = (repoPath: string) => call<GitChanges | null>("git_changes", { repoPath });
 
 export const fetch = (repoPath: string) => call<GitOpResult>("git_fetch", { repoPath });
 export const pull = (repoPath: string) => call<GitOpResult>("git_pull", { repoPath });
