@@ -91,7 +91,16 @@
   let isNew = $state(false);
   let fLabel = $state(""), fType = $state<CredType>("login"), fUser = $state(""), fUrl = $state(""), fNotes = $state(""), fSecret = $state("");
   let fKeyPath = $state("");
+  let fGlobal = $state(false);
   let genLen = $state(20);
+
+  async function toggleGlobal() {
+    if (!editing || isNew) return;
+    const next = !fGlobal;
+    await creds.setGlobal(editing.id, next);
+    fGlobal = next;
+    await load();
+  }
 
   async function pickKey() {
     const sel = await open({
@@ -106,13 +115,13 @@
 
   function openNew() {
     isNew = true;
-    editing = { id: 0, projectId: project.id, label: "", type: "login", username: null, url: null, notes: null, sortOrder: 0, hasSecret: false, keyPath: null };
-    fLabel = ""; fType = "login"; fUser = ""; fUrl = ""; fNotes = ""; fSecret = ""; fKeyPath = "";
+    editing = { id: 0, projectId: project.id, label: "", type: "login", username: null, url: null, notes: null, sortOrder: 0, hasSecret: false, keyPath: null, isGlobal: false };
+    fLabel = ""; fType = "login"; fUser = ""; fUrl = ""; fNotes = ""; fSecret = ""; fKeyPath = ""; fGlobal = false;
   }
   function openEdit(c: Credential) {
     isNew = false;
     editing = c;
-    fLabel = c.label; fType = c.type; fUser = c.username ?? ""; fUrl = c.url ?? ""; fNotes = c.notes ?? ""; fSecret = ""; fKeyPath = c.keyPath ?? "";
+    fLabel = c.label; fType = c.type; fUser = c.username ?? ""; fUrl = c.url ?? ""; fNotes = c.notes ?? ""; fSecret = ""; fKeyPath = c.keyPath ?? ""; fGlobal = c.isGlobal;
   }
   async function save() {
     if (!editing) return;
@@ -239,6 +248,7 @@
         {/if}
         <span class="t">{c.label}</span>
         <span class="badge-type" style="color:var(--accent);background:var(--accent-soft)">{typeLabel(c.type)}</span>
+        {#if c.isGlobal}<span class="cred-global" title="Во всех проектах"><Icon name="pin" class="ic-sm" /></span>{/if}
         <span class="cred-acts">
           {#if c.type === 'ssh'}
             <button class="mini" title="Открыть в PuTTY" onclick={() => openPutty(c.id)}><Icon name="square-terminal" class="ic-sm" /></button>
@@ -330,6 +340,14 @@
           {/if}
         </div>
         <div class="field"><label for="c-notes">Заметка</label><textarea id="c-notes" class="tin" bind:value={fNotes}></textarea></div>
+        {#if !isNew}
+          <div class="field">
+            <div class="toggle-row">
+              <button class="toggle" class:on={fGlobal} onclick={toggleGlobal} aria-pressed={fGlobal} aria-label="Во всех проектах"></button>
+              <div class="tl">Показывать во всех проектах<small>Одна и та же запись появится в каждом проекте; правка и удаление — везде.</small></div>
+            </div>
+          </div>
+        {/if}
       </div>
       <div class="modal-foot">
         {#if !isNew}<button class="btn-danger" onclick={del}><Icon name="trash-2" class="ic-sm" /> Удалить</button>{/if}

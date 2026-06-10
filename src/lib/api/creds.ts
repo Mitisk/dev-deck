@@ -18,3 +18,5 @@ export const update = (id: number, input: CredInput) => call<Credential>("creds_
 export const remove = (id: number) => call<void>("creds_delete", { id });
 export const reorder = (projectId: number, ids: number[]) =>
   call<void>("creds_reorder", { projectId, ids });
+export const setGlobal = (id: number, isGlobal: boolean) =>
+  call<Credential>("creds_set_global", { id, isGlobal });

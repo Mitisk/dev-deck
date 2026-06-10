@@ -143,10 +143,28 @@ pub fn projects_update(state: State<AppState>, id: i64, input: ProjectInput) -> 
     row_to_project(&conn, id)
 }
 
+/// Удалить проект. Глобальные креды этого проекта переселяем в другой проект,
+/// чтобы они пережили удаление. Если других проектов НЕТ — не переселяем
+/// (project_id остался бы NULL и сломал row_to_cred): такие креды уходят по
+/// FK CASCADE вместе с последним проектом.
+fn delete_project_in(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute(
+        "UPDATE credentials
+         SET project_id = (SELECT MIN(id) FROM projects WHERE id <> ?1)
+         WHERE project_id = ?1 AND is_global = 1
+           AND EXISTS (SELECT 1 FROM projects WHERE id <> ?1)",
+        [id],
+    )?;
+    conn.execute("DELETE FROM projects WHERE id = ?1", [id])?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn projects_delete(state: State<AppState>, id: i64) -> AppResult<()> {
     let conn = lock(&state)?;
-    conn.execute("DELETE FROM projects WHERE id = ?1", [id])?;
+    let tx = conn.unchecked_transaction()?;
+    delete_project_in(&conn, id)?;
+    tx.commit()?;
     Ok(())
 }
 
@@ -228,6 +246,44 @@ mod tests {
         let owned: Vec<String> = tags.iter().map(|s| s.to_string()).collect();
         set_tags(conn, id, &owned).unwrap();
         id
+    }
+
+    #[test]
+    fn delete_project_reassigns_global_creds() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P1','active',0)", []).unwrap();
+        let p1 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P2','active',0)", []).unwrap();
+        let p2 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'G','note',0,1)", [p1]).unwrap();
+        let g = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'L','note',0,0)", [p1]).unwrap();
+        let l = conn.last_insert_rowid();
+
+        delete_project_in(&conn, p1).unwrap();
+
+        let pcount: i64 = conn.query_row("SELECT count(*) FROM projects WHERE id=?1", [p1], |r| r.get(0)).unwrap();
+        assert_eq!(pcount, 0, "P1 удалён");
+        let g_home: i64 = conn.query_row("SELECT project_id FROM credentials WHERE id=?1", [g], |r| r.get(0)).unwrap();
+        assert_eq!(g_home, p2, "глобальный кред переехал в P2");
+        let lcount: i64 = conn.query_row("SELECT count(*) FROM credentials WHERE id=?1", [l], |r| r.get(0)).unwrap();
+        assert_eq!(lcount, 0, "локальный кред удалён с проектом");
+    }
+
+    #[test]
+    fn delete_last_project_removes_orphan_globals() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let p = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'G','note',0,1)", [p]).unwrap();
+        let g = conn.last_insert_rowid();
+
+        delete_project_in(&conn, p).unwrap();
+
+        // нет другого проекта → глобальный кред НЕ остаётся сиротой с NULL,
+        // а удаляется по каскаду вместе с последним проектом
+        let cnt: i64 = conn.query_row("SELECT count(*) FROM credentials WHERE id=?1", [g], |r| r.get(0)).unwrap();
+        assert_eq!(cnt, 0);
     }
 
     #[test]
