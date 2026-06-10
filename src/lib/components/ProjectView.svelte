@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Project } from "$lib/types";
   import { activeTab, type Tab } from "$lib/stores/ui";
+  import { features } from "$lib/stores/features";
   import { statusLabel } from "$lib/format";
   import * as actions from "$lib/api/actions";
   import Icon from "./Icon.svelte";
@@ -20,16 +21,22 @@
     void action();
   }
 
-  const tabs: { key: Tab; label: string }[] = [
+  const allTabs: { key: Tab; label: string; feature?: keyof typeof $features }[] = [
     { key: "overview", label: "Обзор" },
-    { key: "tasks", label: "Задачи" },
-    { key: "checklists", label: "Чеклисты" },
-    { key: "creds", label: "Креды" },
+    { key: "tasks", label: "Задачи", feature: "tasks" },
+    { key: "checklists", label: "Чеклисты", feature: "checklists" },
+    { key: "creds", label: "Креды", feature: "creds" },
     { key: "notes", label: "Заметки" },
     { key: "settings", label: "Настройки" },
   ];
 
+  const tabs = $derived(allTabs.filter((t) => !t.feature || $features[t.feature]));
   const activeLabel = $derived(tabs.find((x) => x.key === $activeTab)?.label ?? "");
+
+  // Если активная вкладка скрыта выключенной опцией — вернуться на «Обзор».
+  $effect(() => {
+    if (!tabs.some((t) => t.key === $activeTab)) activeTab.set("overview");
+  });
 </script>
 
 <div class="ws-inner" style="--p-color:{project.color ?? 'var(--accent)'}">
