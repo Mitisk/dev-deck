@@ -117,6 +117,7 @@ pub fn run() {
             commands::git::git_pull,
             commands::git::git_push,
             commands::git::git_commit_all,
+            commands::git::git_changes,
             commands::git::dashboard_attention,
             commands::tasks::tasks_list,
             commands::tasks::tasks_create,

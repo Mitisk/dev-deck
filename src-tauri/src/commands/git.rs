@@ -1,5 +1,5 @@
 use crate::error::{AppError, AppResult, ErrorKind};
-use crate::models::{AttentionItem, GitOpResult, GitStatus};
+use crate::models::{AttentionItem, GitChanges, GitFile, GitOpResult, GitStatus};
 use crate::state::AppState;
 use git2::{BranchType, Repository, Status, StatusOptions};
 use std::path::Path;
@@ -85,6 +85,76 @@ fn status_of(repo: &Repository) -> AppResult<GitStatus> {
         last_message,
         last_timestamp,
     })
+}
+
+/// Детализация незакоммиченных изменений: diffstat + список файлов.
+fn changes_of(repo: &Repository) -> AppResult<GitChanges> {
+    // diffstat: HEAD-дерево → рабочее дерево (с учётом индекса). Untracked включаем.
+    let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+    let mut diff_opts = git2::DiffOptions::new();
+    diff_opts.include_untracked(true).recurse_untracked_dirs(true);
+    let diff = repo.diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut diff_opts))?;
+    let stats = diff.stats()?;
+    let insertions = stats.insertions();
+    let deletions = stats.deletions();
+
+    // Список файлов из того же statuses(), что и status_of.
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true).include_ignored(false);
+    let statuses = repo.statuses(Some(&mut opts))?;
+
+    let mut files = Vec::new();
+    for e in statuses.iter() {
+        let s = e.status();
+        if s.contains(Status::IGNORED) {
+            continue;
+        }
+        let path = e.path().unwrap_or("").to_string();
+        let index_flags = Status::INDEX_NEW
+            | Status::INDEX_MODIFIED
+            | Status::INDEX_DELETED
+            | Status::INDEX_RENAMED
+            | Status::INDEX_TYPECHANGE;
+        let staged = s.intersects(index_flags);
+        // Буква статуса: рабочее дерево приоритетнее индекса.
+        let code = if s.contains(Status::WT_NEW) {
+            "?"
+        } else if s.intersects(Status::WT_DELETED | Status::INDEX_DELETED) {
+            "D"
+        } else if s.intersects(Status::WT_RENAMED | Status::INDEX_RENAMED) {
+            "R"
+        } else if s.intersects(Status::WT_TYPECHANGE | Status::INDEX_TYPECHANGE) {
+            "T"
+        } else if s.contains(Status::INDEX_NEW) {
+            "A"
+        } else {
+            "M"
+        };
+        files.push(GitFile { path, code: code.to_string(), staged });
+    }
+
+    // Сортировка по категориям: staged → modified → untracked → deleted.
+    files.sort_by_key(|f| match (f.staged, f.code.as_str()) {
+        (true, _) => 0,
+        (false, "?") => 2,
+        (false, "D") => 3,
+        _ => 1,
+    });
+
+    Ok(GitChanges { insertions, deletions, files })
+}
+
+/// Прочитать детализацию изменений по пути. None — путь пуст или не git-репозиторий.
+#[tauri::command]
+pub fn git_changes(repo_path: String) -> AppResult<Option<GitChanges>> {
+    let p = expand(&repo_path);
+    if p.is_empty() {
+        return Ok(None);
+    }
+    match Repository::open(&p) {
+        Ok(repo) => Ok(Some(changes_of(&repo)?)),
+        Err(_) => Ok(None),
+    }
 }
 
 /// Прочитать git-статус по пути. None — путь пуст или не git-репозиторий.
@@ -258,6 +328,39 @@ mod tests {
         let st = status_of(&repo).unwrap();
         assert_eq!(st.dirty, 0);
         assert_eq!(st.untracked, 0);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn git_changes_reports_files_and_insertions() {
+        let (dir, repo) = temp_repo();
+        commit_file(&repo, "a.txt", "line1\n");
+        // модифицируем закоммиченный файл
+        fs::write(dir.join("a.txt"), "line1\nline2\n").unwrap();
+        // новый неотслеживаемый файл
+        fs::write(dir.join("b.txt"), "new\n").unwrap();
+        // staged-файл
+        {
+            fs::write(dir.join("c.txt"), "staged\n").unwrap();
+            let mut index = repo.index().unwrap();
+            index.add_path(Path::new("c.txt")).unwrap();
+            index.write().unwrap();
+        }
+
+        let ch = changes_of(&repo).unwrap();
+        assert!(ch.insertions > 0, "insertions was {}", ch.insertions);
+
+        let a = ch.files.iter().find(|f| f.path == "a.txt").expect("a.txt");
+        assert_eq!(a.code, "M");
+        assert!(!a.staged);
+
+        let b = ch.files.iter().find(|f| f.path == "b.txt").expect("b.txt");
+        assert_eq!(b.code, "?");
+
+        let c = ch.files.iter().find(|f| f.path == "c.txt").expect("c.txt");
+        assert_eq!(c.code, "A");
+        assert!(c.staged);
+
         let _ = fs::remove_dir_all(&dir);
     }
 
