@@ -148,16 +148,10 @@
     overId = null;
     overAfter = false;
   }
-  async function commitDrop() {
-    if (dragId === null || overId === null) { clearDrag(); return; }
+  // Применить перестановку: dragId встаёт перед beforeId (null → в конец).
+  async function applyReorder(beforeId: number | null) {
+    if (dragId === null || query) { clearDrag(); return; }
     const ids = items.map((c) => c.id);
-    let beforeId: number | null;
-    if (!overAfter) {
-      beforeId = overId;
-    } else {
-      const i = ids.indexOf(overId);
-      beforeId = i >= 0 && i + 1 < ids.length ? ids[i + 1] : null;
-    }
     const next = reorderIds(ids, dragId, beforeId);
     clearDrag();
     if (next.join(",") === ids.join(",")) return; // порядок не изменился — no-op
@@ -168,6 +162,25 @@
     } catch {
       await load(); // откат к серверному порядку (тост ошибки уже из client.ts)
     }
+  }
+  // Бросок на карточку: вставка перед ней (левая половина) или после (правая).
+  function commitDrop() {
+    if (dragId === null || overId === null) { clearDrag(); return; }
+    const ids = items.map((c) => c.id);
+    let beforeId: number | null;
+    if (!overAfter) {
+      beforeId = overId;
+    } else {
+      const i = ids.indexOf(overId);
+      beforeId = i >= 0 && i + 1 < ids.length ? ids[i + 1] : null;
+    }
+    void applyReorder(beforeId);
+  }
+  // Бросок в пустую область грида (после всех карточек) → в конец.
+  function commitDropEnd(e: DragEvent) {
+    if (dragId === null) return;
+    if (e.currentTarget !== e.target) return; // сработало пузырьком от карточки — игнор
+    void applyReorder(null);
   }
 </script>
 
@@ -180,7 +193,9 @@
   <button class="btn-primary" onclick={openNew}><Icon name="plus" class="ic ic-sm" /> Добавить</button>
 </div>
 
-<div class="creds" role="list">
+<div class="creds" role="list"
+     ondragover={(e) => { if (dragId !== null) e.preventDefault(); }}
+     ondrop={commitDropEnd}>
   {#each filtered as c (c.id)}
     <div class="card cred"
          class:drop-before={dragId !== null && dragId !== c.id && overId === c.id && !overAfter}

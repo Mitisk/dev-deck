@@ -21,4 +21,8 @@ describe("reorderIds", () => {
   it("несуществующий beforeId → в конец", () => {
     expect(reorderIds([1, 2, 3], 1, 99)).toEqual([2, 3, 1]);
   });
+
+  it("бросок на правую половину самого себя (beforeId = следующий) не меняет порядок", () => {
+    expect(reorderIds([1, 2, 3], 2, 3)).toEqual([1, 2, 3]);
+  });
 });

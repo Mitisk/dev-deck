@@ -801,8 +801,8 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .cred-grip:active { cursor: grabbing; }
 .cred-grip:hover { color: var(--text-2); }
 .cred-grip svg { pointer-events: none; }
-.cred.drop-before { box-shadow: inset 3px 0 0 var(--accent); }
-.cred.drop-after { box-shadow: inset -3px 0 0 var(--accent); }
+.cred.drop-before { box-shadow: inset 3px 0 0 var(--accent), var(--shadow); }
+.cred.drop-after { box-shadow: inset -3px 0 0 var(--accent), var(--shadow); }
 
 /* чеклист — строка добавления пункта */
 /* поле пути с кнопкой выбора каталога/файла */
