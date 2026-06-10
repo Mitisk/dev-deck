@@ -152,6 +152,7 @@ pub fn run() {
             commands::creds::creds_create,
             commands::creds::creds_update,
             commands::creds::creds_delete,
+            commands::creds::creds_reorder,
             commands::notes::notes_list,
             commands::notes::notes_create,
             commands::notes::notes_update,
