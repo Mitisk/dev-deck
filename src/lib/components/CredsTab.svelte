@@ -4,6 +4,7 @@
   import { copy, copySecret } from "$lib/clipboard";
   import { pushToast } from "$lib/stores/toasts";
   import Icon from "./Icon.svelte";
+  import { reorderIds } from "$lib/credsOrder";
 
   let { project }: { project: Project } = $props();
 
@@ -122,6 +123,65 @@
     await creds.remove(id);
     await load();
   }
+
+  // --- drag-and-drop сортировка (только при пустом поиске) ---
+  let dragId = $state<number | null>(null);
+  let overId = $state<number | null>(null); // карточка под курсором
+  let overAfter = $state(false);            // курсор в правой половине → вставка после
+
+  function onGripDragStart(e: DragEvent, id: number) {
+    dragId = id;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(id));
+    }
+  }
+  function onCardDragOver(e: DragEvent, id: number) {
+    if (dragId === null) return;
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    overId = id;
+    overAfter = e.clientX >= rect.left + rect.width / 2;
+  }
+  function clearDrag() {
+    dragId = null;
+    overId = null;
+    overAfter = false;
+  }
+  // Применить перестановку: dragId встаёт перед beforeId (null → в конец).
+  async function applyReorder(beforeId: number | null) {
+    if (dragId === null || query) { clearDrag(); return; }
+    const ids = items.map((c) => c.id);
+    const next = reorderIds(ids, dragId, beforeId);
+    clearDrag();
+    if (next.join(",") === ids.join(",")) return; // порядок не изменился — no-op
+    const byId = new Map(items.map((c) => [c.id, c]));
+    items = next.map((id) => byId.get(id)!); // оптимистично
+    try {
+      await creds.reorder(project.id, next);
+    } catch {
+      await load(); // откат к серверному порядку (тост ошибки уже из client.ts)
+    }
+  }
+  // Бросок на карточку: вставка перед ней (левая половина) или после (правая).
+  function commitDrop() {
+    if (dragId === null || overId === null) { clearDrag(); return; }
+    const ids = items.map((c) => c.id);
+    let beforeId: number | null;
+    if (!overAfter) {
+      beforeId = overId;
+    } else {
+      const i = ids.indexOf(overId);
+      beforeId = i >= 0 && i + 1 < ids.length ? ids[i + 1] : null;
+    }
+    void applyReorder(beforeId);
+  }
+  // Бросок в пустую область грида (после всех карточек) → в конец.
+  function commitDropEnd(e: DragEvent) {
+    if (dragId === null) return;
+    if (e.currentTarget !== e.target) return; // сработало пузырьком от карточки — игнор
+    void applyReorder(null);
+  }
 </script>
 
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
@@ -133,10 +193,23 @@
   <button class="btn-primary" onclick={openNew}><Icon name="plus" class="ic ic-sm" /> Добавить</button>
 </div>
 
-<div class="creds">
+<div class="creds" role="list"
+     ondragover={(e) => { if (dragId !== null) e.preventDefault(); }}
+     ondrop={commitDropEnd}>
   {#each filtered as c (c.id)}
-    <div class="card cred">
+    <div class="card cred"
+         class:drop-before={dragId !== null && dragId !== c.id && overId === c.id && !overAfter}
+         class:drop-after={dragId !== null && dragId !== c.id && overId === c.id && overAfter}
+         role="listitem"
+         ondragover={(e) => onCardDragOver(e, c.id)}
+         ondrop={commitDrop}>
       <div class="cred-head">
+        {#if !query}
+          <button class="cred-grip" type="button" draggable={true} title="Перетащите, чтобы изменить порядок"
+                  ondragstart={(e) => onGripDragStart(e, c.id)} ondragend={clearDrag}>
+            <Icon name="grip-vertical" class="ic-sm" />
+          </button>
+        {/if}
         <span class="t">{c.label}</span>
         <span class="badge-type" style="color:var(--accent);background:var(--accent-soft)">{typeLabel(c.type)}</span>
         <button class="mini cred-del" style="margin-left:auto" title="Редактировать" onclick={() => openEdit(c)}>

@@ -124,6 +124,21 @@ pub fn creds_delete(state: State<AppState>, id: i64) -> AppResult<()> {
     Ok(())
 }
 
+/// Переставить креды: выставить sort_order по порядку переданных id.
+#[tauri::command]
+pub fn creds_reorder(state: State<AppState>, project_id: i64, ids: Vec<i64>) -> AppResult<()> {
+    let conn = lock(&state)?;
+    let tx = conn.unchecked_transaction()?;
+    for (i, id) in ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE credentials SET sort_order=?2 WHERE id=?1 AND project_id=?3",
+            params![id, i as i64, project_id],
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,5 +179,44 @@ mod tests {
         assert_eq!(cred.label, "Stripe");
         assert_eq!(cred.kind, "api_key");
         assert!(cred.has_secret);
+    }
+
+    #[test]
+    fn creds_reorder_sets_sort_order() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let pid = conn.last_insert_rowid();
+
+        let blob = crypto::encrypt(b"x").unwrap();
+        conn.execute(
+            "INSERT INTO credentials(project_id,label,type,secret_encrypted,sort_order) VALUES(?1,'a','note',?2,0)",
+            params![pid, blob],
+        ).unwrap();
+        let a = conn.last_insert_rowid();
+
+        let blob2 = crypto::encrypt(b"y").unwrap();
+        conn.execute(
+            "INSERT INTO credentials(project_id,label,type,secret_encrypted,sort_order) VALUES(?1,'b','note',?2,1)",
+            params![pid, blob2],
+        ).unwrap();
+        let b = conn.last_insert_rowid();
+
+        // переставляем в порядок [b, a] той же SQL-логикой, что и команда
+        let ids = vec![b, a];
+        let tx = conn.unchecked_transaction().unwrap();
+        for (i, id) in ids.iter().enumerate() {
+            conn.execute(
+                "UPDATE credentials SET sort_order=?2 WHERE id=?1 AND project_id=?3",
+                params![id, i as i64, pid],
+            ).unwrap();
+        }
+        tx.commit().unwrap();
+
+        let order: Vec<i64> = {
+            let mut stmt = conn.prepare("SELECT id FROM credentials WHERE project_id=?1 ORDER BY sort_order ASC, id ASC").unwrap();
+            let rows = stmt.query_map([pid], |r| r.get(0)).unwrap();
+            rows.map(|r| r.unwrap()).collect()
+        };
+        assert_eq!(order, vec![b, a]);
     }
 }
