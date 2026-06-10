@@ -59,6 +59,24 @@ pub struct GitOpResult {
     pub output: String,
 }
 
+/// Один изменённый файл рабочего дерева/индекса.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitFile {
+    pub path: String,    // относительный путь от корня репозитория (POSIX)
+    pub code: String,    // "M" | "A" | "D" | "R" | "T" | "?"
+    pub staged: bool,    // присутствует в индексе
+}
+
+/// Детализация незакоммиченных изменений (для попапа пилюли).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitChanges {
+    pub insertions: usize, // суммарно +строк (staged+unstaged)
+    pub deletions: usize,  // суммарно −строк
+    pub files: Vec<GitFile>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
