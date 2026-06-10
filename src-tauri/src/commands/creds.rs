@@ -148,17 +148,36 @@ pub fn creds_delete(state: State<AppState>, id: i64) -> AppResult<()> {
     Ok(())
 }
 
+/// Применить порядок: локальные пишут в credentials.sort_order, глобальные — в cred_order.
+fn reorder_creds(conn: &Connection, project_id: i64, ids: &[i64]) -> AppResult<()> {
+    for (i, id) in ids.iter().enumerate() {
+        let is_global: bool = conn.query_row(
+            "SELECT is_global FROM credentials WHERE id=?1",
+            params![id],
+            |r| r.get::<_, i64>(0),
+        )? != 0;
+        if is_global {
+            conn.execute(
+                "INSERT INTO cred_order(cred_id, project_id, sort_order) VALUES(?1,?2,?3)
+                 ON CONFLICT(cred_id, project_id) DO UPDATE SET sort_order=excluded.sort_order",
+                params![id, project_id, i as i64],
+            )?;
+        } else {
+            conn.execute(
+                "UPDATE credentials SET sort_order=?2 WHERE id=?1 AND project_id=?3",
+                params![id, i as i64, project_id],
+            )?;
+        }
+    }
+    Ok(())
+}
+
 /// Переставить креды: выставить sort_order по порядку переданных id.
 #[tauri::command]
 pub fn creds_reorder(state: State<AppState>, project_id: i64, ids: Vec<i64>) -> AppResult<()> {
     let conn = lock(&state)?;
     let tx = conn.unchecked_transaction()?;
-    for (i, id) in ids.iter().enumerate() {
-        conn.execute(
-            "UPDATE credentials SET sort_order=?2 WHERE id=?1 AND project_id=?3",
-            params![id, i as i64, project_id],
-        )?;
-    }
+    reorder_creds(&conn, project_id, &ids)?;
     tx.commit()?;
     Ok(())
 }
@@ -345,6 +364,29 @@ mod tests {
 
         let p2_ids = list_cred_ids(&conn, p2).unwrap();
         assert_eq!(p2_ids, vec![g], "P2 видит только глобальный G");
+    }
+
+    #[test]
+    fn reorder_creds_routes_by_global_flag() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let p = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'L','note',0,0)", [p]).unwrap();
+        let l = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'G','note',0,1)", [p]).unwrap();
+        let g = conn.last_insert_rowid();
+
+        reorder_creds(&conn, p, &[g, l]).unwrap();
+
+        // локальный l → credentials.sort_order = 1
+        let l_order: i64 = conn.query_row("SELECT sort_order FROM credentials WHERE id=?1", [l], |r| r.get(0)).unwrap();
+        assert_eq!(l_order, 1);
+        // глобальный g → строка в cred_order = 0
+        let g_pos: i64 = conn.query_row("SELECT sort_order FROM cred_order WHERE cred_id=?1 AND project_id=?2", params![g, p], |r| r.get(0)).unwrap();
+        assert_eq!(g_pos, 0);
+        // глобальный g НЕ трогает credentials.sort_order
+        let g_cred: i64 = conn.query_row("SELECT sort_order FROM credentials WHERE id=?1", [g], |r| r.get(0)).unwrap();
+        assert_eq!(g_cred, 0);
     }
 
     #[test]
