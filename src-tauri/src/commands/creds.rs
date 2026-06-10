@@ -2,7 +2,7 @@ use crate::commands::security::{decrypt_secret, encrypt_secret};
 use crate::error::{AppError, AppResult, ErrorKind};
 use crate::models::{CredInput, Credential};
 use crate::state::AppState;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use std::process::Command;
 use std::sync::MutexGuard;
 use tauri::State;
@@ -147,7 +147,10 @@ pub fn creds_reorder(state: State<AppState>, project_id: i64, ids: Vec<i64>) -> 
 fn split_host_port(target: &str) -> (&str, Option<&str>) {
     if let Some(idx) = target.rfind(':') {
         let (h, p) = (&target[..idx], &target[idx + 1..]);
-        if !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) {
+        // Порт извлекаем, только если хвост — цифры И слева не «голый» IPv6
+        // (в голом IPv6 есть `:`; bracketed-форма `[..]` заканчивается на `]`).
+        let host_ok = !h.contains(':') || h.ends_with(']');
+        if !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) && host_ok {
             return (h, Some(p));
         }
     }
@@ -195,11 +198,14 @@ fn spawn_putty(args: &[String]) -> AppResult<()> {
 #[tauri::command]
 pub fn launch_putty(state: State<AppState>, id: i64) -> AppResult<()> {
     let conn = lock(&state)?;
-    let (username, key_path): (Option<String>, Option<String>) = conn.query_row(
-        "SELECT username, key_path FROM credentials WHERE id=?1",
-        [id],
-        |r| Ok((r.get(0)?, r.get(1)?)),
-    )?;
+    let (username, key_path): (Option<String>, Option<String>) = conn
+        .query_row(
+            "SELECT username, key_path FROM credentials WHERE id=?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .ok_or_else(|| AppError { kind: ErrorKind::NotFound, message: "Кред не найден".into() })?;
     let target = username.unwrap_or_default();
     if target.trim().is_empty() {
         return Err(AppError {
@@ -272,6 +278,15 @@ mod tests {
         assert_eq!(split_host_port("root@h:2222"), ("root@h", Some("2222")));
         assert_eq!(split_host_port("host"), ("host", None));
         assert_eq!(split_host_port("host:abc"), ("host:abc", None));
+    }
+
+    #[test]
+    fn split_host_port_handles_ipv6() {
+        // голый IPv6 — порт не извлекаем
+        assert_eq!(split_host_port("::1"), ("::1", None));
+        assert_eq!(split_host_port("fe80::1"), ("fe80::1", None));
+        // bracketed IPv6 с портом — извлекаем
+        assert_eq!(split_host_port("[::1]:22"), ("[::1]", Some("22")));
     }
 
     #[test]
