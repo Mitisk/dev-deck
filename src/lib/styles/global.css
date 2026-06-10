@@ -792,6 +792,8 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .cl-item:hover .cl-del, .checklist:hover .cl-list-del, .cred:hover .cred-del { opacity: 1; }
 .cl-del:hover, .cl-list-del:hover, .cred-del:hover { background: color-mix(in oklab, var(--danger) 14%, transparent); color: var(--danger); }
 .cred-head .cred-acts { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.cred-global { display: inline-flex; align-items: center; color: var(--accent); }
+.cred-global svg { width: 13px; height: 13px; }
 .secret-row { display: flex; gap: 8px; align-items: center; }
 .secret-row > input.tin:first-child { flex: 1; min-width: 0; }
 .gen-len { width: 64px; flex: none; text-align: center; }
