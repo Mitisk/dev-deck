@@ -59,8 +59,13 @@ export const reorder = (projectId: number, ids: number[]) =>
 ## 3. CredsTab — drag-and-drop
 
 Паттерн взят из [TasksTab.svelte](../../../src/lib/components/TasksTab.svelte)
-(`dragId`/`dropBeforeId`/`onCardDragOver`/`drop-line`), упрощён до плоского
-вертикального списка.
+(`dragId`/`dropBeforeId`), адаптирован под РЕШЁТКУ: `.creds` — это
+`display:grid; grid-template-columns: repeat(auto-fill, minmax(340px,1fr))`
+([global.css:480](../../../src/lib/styles/global.css#L480)), карточки текут
+слева-направо с переносом. Поэтому half-детекция — по горизонтали (левая/правая
+половина карточки), а индикатор вставки — подсветка края целевой карточки
+(вставлять отдельный full-width `drop-line` между ячейками грида нельзя — он
+займёт ячейку и сломает раскладку).
 
 ### Аффорданс
 - Грип-ручка (иконка `grip-vertical`, `cursor:grab`) — первый элемент внутри
@@ -78,14 +83,15 @@ export const reorder = (projectId: number, ids: number[]) =>
 ### Поведение
 - `ondragstart` (на ручке): `dragId = c.id`; `e.dataTransfer.effectAllowed = "move"`,
   `setData("text/plain", String(c.id))`.
-- `ondragover` (на карточке): `e.preventDefault()`; по вертикальной позиции курсора
-  относительно середины карточки (`e.currentTarget.getBoundingClientRect()`)
-  выставить `dropBeforeId = c.id` (верхняя половина) или id следующего креда /
-  `null` (нижняя половина → вставка после). Реализация — как `onCardDragOver`
-  в TasksTab.
-- Индикатор `drop-line` рендерится перед карточкой, если
-  `dropBeforeId === c.id && dragId != null && dragId !== c.id`, и в конце списка,
-  если `dropBeforeId === null && dragId != null`.
+- `ondragover` (на карточке): `e.preventDefault()`; по ГОРИЗОНТАЛЬНОЙ позиции
+  курсора относительно середины карточки
+  (`rect = e.currentTarget.getBoundingClientRect(); before = e.clientX < rect.left + rect.width/2`)
+  выставить `dropBeforeId = c.id` (левая половина → вставка перед этой карточкой)
+  либо id следующей карточки / `null` (правая половина → вставка после).
+- Индикатор: класс на целевой карточке (НЕ отдельный элемент). `.drop-before`
+  рисует акцентную полосу у левого края (`box-shadow: inset 3px 0 0 var(--accent)`),
+  `.drop-after` — у правого (`inset -3px 0 0 var(--accent)`). Класс ставится
+  карточке, над которой курсор, когда `dragId != null && dragId !== c.id`.
 - `ondrop` / `ondragend`: вычислить новый порядок (см. ниже), применить
   оптимистично к `items`, затем `await creds.reorder(project.id, items.map(c => c.id))`.
   Сбросить `dragId`/`dropBeforeId`.
@@ -139,4 +145,5 @@ Backend: `src-tauri/src/commands/creds.rs` (+команда, +тест),
 `src-tauri/src/lib.rs` (регистрация).
 Frontend: `src/lib/api/creds.ts` (+reorder), `src/lib/credsOrder.ts` (новый,
 +тест `src/tests/credsOrder.test.ts`), `src/lib/components/CredsTab.svelte`
-(грип-ручка + DnD), `src/lib/styles/global.css` (стиль ручки; `drop-line` уже есть).
+(грип-ручка + DnD), `src/lib/styles/global.css` (стиль ручки `.cred-grip` +
+индикаторы `.drop-before`/`.drop-after`).
