@@ -13,7 +13,8 @@ fn lock<'a>(state: &'a State<AppState>) -> AppResult<MutexGuard<'a, Connection>>
 fn row_to_cred(conn: &Connection, id: i64) -> AppResult<Credential> {
     Ok(conn.query_row(
         "SELECT id, project_id, label, type, username, url, notes, sort_order,
-                (secret_encrypted IS NOT NULL AND length(secret_encrypted) > 0)
+                (secret_encrypted IS NOT NULL AND length(secret_encrypted) > 0),
+                key_path
          FROM credentials WHERE id = ?1",
         [id],
         |r| {
@@ -27,6 +28,7 @@ fn row_to_cred(conn: &Connection, id: i64) -> AppResult<Credential> {
                 notes: r.get(6)?,
                 sort_order: r.get(7)?,
                 has_secret: r.get::<_, i64>(8)? != 0,
+                key_path: r.get(9)?,
             })
         },
     )?)
@@ -81,8 +83,8 @@ pub fn creds_create(state: State<AppState>, project_id: i64, input: CredInput) -
         _ => None,
     };
     conn.execute(
-        "INSERT INTO credentials(project_id, label, type, username, url, secret_encrypted, notes, sort_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO credentials(project_id, label, type, username, url, secret_encrypted, notes, sort_order, key_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             project_id,
             input.label.trim(),
@@ -92,6 +94,7 @@ pub fn creds_create(state: State<AppState>, project_id: i64, input: CredInput) -
             secret_blob,
             input.notes,
             next,
+            input.key_path,
         ],
     )?;
     row_to_cred(&conn, conn.last_insert_rowid())
@@ -102,9 +105,9 @@ pub fn creds_update(state: State<AppState>, id: i64, input: CredInput) -> AppRes
     validate(&input)?;
     let conn = lock(&state)?;
     let n = conn.execute(
-        "UPDATE credentials SET label=?2, type=?3, username=?4, url=?5, notes=?6, updated_at=datetime('now')
+        "UPDATE credentials SET label=?2, type=?3, username=?4, url=?5, notes=?6, key_path=?7, updated_at=datetime('now')
          WHERE id=?1",
-        params![id, input.label.trim(), input.kind, input.username, input.url, input.notes],
+        params![id, input.label.trim(), input.kind, input.username, input.url, input.notes, input.key_path],
     )?;
     if n == 0 {
         return Err(AppError { kind: ErrorKind::NotFound, message: "Кред не найден".into() });
