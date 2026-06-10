@@ -5,6 +5,9 @@
   import { pushToast } from "$lib/stores/toasts";
   import Icon from "./Icon.svelte";
   import { reorderIds } from "$lib/credsOrder";
+  import * as actions from "$lib/api/actions";
+  import { generatePassword, passwordStrength } from "$lib/password";
+  import { open } from "@tauri-apps/plugin-dialog";
 
   let { project }: { project: Project } = $props();
 
@@ -87,16 +90,29 @@
   let editing = $state<Credential | null>(null);
   let isNew = $state(false);
   let fLabel = $state(""), fType = $state<CredType>("login"), fUser = $state(""), fUrl = $state(""), fNotes = $state(""), fSecret = $state("");
+  let fKeyPath = $state("");
+  let genLen = $state(20);
+
+  async function pickKey() {
+    const sel = await open({
+      multiple: false,
+      filters: [
+        { name: "Ключи", extensions: ["ppk", "pem", "key"] },
+        { name: "Все файлы", extensions: ["*"] },
+      ],
+    });
+    if (sel && !Array.isArray(sel)) fKeyPath = sel;
+  }
 
   function openNew() {
     isNew = true;
     editing = { id: 0, projectId: project.id, label: "", type: "login", username: null, url: null, notes: null, sortOrder: 0, hasSecret: false, keyPath: null };
-    fLabel = ""; fType = "login"; fUser = ""; fUrl = ""; fNotes = ""; fSecret = "";
+    fLabel = ""; fType = "login"; fUser = ""; fUrl = ""; fNotes = ""; fSecret = ""; fKeyPath = "";
   }
   function openEdit(c: Credential) {
     isNew = false;
     editing = c;
-    fLabel = c.label; fType = c.type; fUser = c.username ?? ""; fUrl = c.url ?? ""; fNotes = c.notes ?? ""; fSecret = "";
+    fLabel = c.label; fType = c.type; fUser = c.username ?? ""; fUrl = c.url ?? ""; fNotes = c.notes ?? ""; fSecret = ""; fKeyPath = c.keyPath ?? "";
   }
   async function save() {
     if (!editing) return;
@@ -108,6 +124,7 @@
       username: fUser.trim() || null,
       url: fUrl.trim() || null,
       notes: fNotes.trim() || null,
+      keyPath: fKeyPath.trim() || null,
       // при редактировании пустой секрет = «не менять» (undefined); при создании — задать
       secret: isNew ? (fSecret || null) : fSecret ? fSecret : undefined,
     };
@@ -272,9 +289,26 @@
           </div>
           <div class="field"><label for="c-user">Логин / хост</label><input id="c-user" class="tin" bind:value={fUser} /></div>
           <div class="field"><label for="c-url">URL</label><input id="c-url" class="tin mono" bind:value={fUrl} /></div>
+          <div class="field"><label for="c-key">Путь к ключу</label>
+            <div class="key-row">
+              <input id="c-key" class="tin mono" placeholder="C:\keys\id.ppk" bind:value={fKeyPath} />
+              <button class="btn-ghost" type="button" onclick={pickKey} title="Выбрать файл"><Icon name="folder-open" class="ic-sm" /></button>
+            </div>
+          </div>
         </div>
         <div class="field"><label for="c-secret">Секрет {#if !isNew}<span style="color:var(--muted-2)">(пусто = не менять)</span>{/if}</label>
-          <input id="c-secret" class="tin mono" type="password" bind:value={fSecret} autocomplete="off" /></div>
+          <div class="secret-row">
+            <input id="c-secret" class="tin mono" type="password" bind:value={fSecret} autocomplete="off" />
+            <input class="tin gen-len" type="number" min="8" max="64" bind:value={genLen} aria-label="Длина пароля" title="Длина" />
+            <button class="btn-ghost" type="button" onclick={() => (fSecret = generatePassword(genLen))} title="Сгенерировать пароль"><Icon name="dices" class="ic-sm" /> Сгенерировать</button>
+          </div>
+          {#if fSecret}
+            {@const score = passwordStrength(fSecret)}
+            <div class="pw-meter" data-score={score}>
+              {#each [1, 2, 3, 4] as seg}<span class="seg" class:on={score >= seg}></span>{/each}
+            </div>
+          {/if}
+        </div>
         <div class="field"><label for="c-notes">Заметка</label><textarea id="c-notes" class="tin" bind:value={fNotes}></textarea></div>
       </div>
       <div class="modal-foot">
