@@ -94,6 +94,18 @@
   let fGlobal = $state(false);
   let genLen = $state(20);
 
+  // Видимость полей и подписи зависят от типа креда.
+  const showUser = $derived(fType === "login" || fType === "ssh");
+  const showUrl = $derived(fType === "login" || fType === "api_key" || fType === "token" || fType === "ssh");
+  const showKey = $derived(fType === "ssh");
+  const showSecret = $derived(fType !== "note");
+  const urlLabel = $derived(
+    fType === "api_key" ? "Endpoint" : fType === "ssh" ? "Хост" : fType === "login" ? "Сайт" : "URL",
+  );
+  const secretLabel = $derived(
+    fType === "api_key" ? "Ключ" : fType === "token" ? "Токен" : fType === "conn_string" ? "Строка подключения" : "Пароль",
+  );
+
   async function toggleGlobal() {
     if (!editing || isNew) return;
     const next = !fGlobal;
@@ -317,16 +329,19 @@
               {#each TYPES as t}<option value={t.value}>{t.label}</option>{/each}
             </select>
           </div>
-          <div class="field"><label for="c-user">Логин / хост</label><input id="c-user" class="tin" bind:value={fUser} /></div>
-          <div class="field"><label for="c-url">URL</label><input id="c-url" class="tin mono" bind:value={fUrl} /></div>
-          <div class="field"><label for="c-key">Путь к ключу</label>
-            <div class="key-row">
-              <input id="c-key" class="tin mono" placeholder="C:\keys\id.ppk" bind:value={fKeyPath} />
-              <button class="btn-ghost" type="button" onclick={pickKey} title="Выбрать файл"><Icon name="folder-open" class="ic-sm" /></button>
+          {#if showUser}<div class="field"><label for="c-user">Логин</label><input id="c-user" class="tin" bind:value={fUser} /></div>{/if}
+          {#if showUrl}<div class="field"><label for="c-url">{urlLabel}</label><input id="c-url" class="tin mono" bind:value={fUrl} /></div>{/if}
+          {#if showKey}
+            <div class="field"><label for="c-key">Путь к ключу (.ppk)</label>
+              <div class="key-row">
+                <input id="c-key" class="tin mono" placeholder="C:\keys\id.ppk" bind:value={fKeyPath} />
+                <button class="btn-ghost" type="button" onclick={pickKey} title="Выбрать файл"><Icon name="folder-open" class="ic-sm" /></button>
+              </div>
             </div>
-          </div>
+          {/if}
         </div>
-        <div class="field"><label for="c-secret">Секрет {#if !isNew}<span style="color:var(--muted-2)">(пусто = не менять)</span>{/if}</label>
+        {#if showSecret}
+        <div class="field"><label for="c-secret">{secretLabel} {#if !isNew}<span style="color:var(--muted-2)">(пусто = не менять)</span>{/if}</label>
           <div class="secret-row">
             <input id="c-secret" class="tin mono" type="password" bind:value={fSecret} autocomplete="off" />
             <input class="tin gen-len" type="number" min="8" max="64" bind:value={genLen} aria-label="Длина пароля" title="Длина" />
@@ -339,6 +354,7 @@
             </div>
           {/if}
         </div>
+        {/if}
         <div class="field"><label for="c-notes">Заметка</label><textarea id="c-notes" class="tin" bind:value={fNotes}></textarea></div>
         {#if !isNew}
           <div class="field">
