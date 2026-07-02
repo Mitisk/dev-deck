@@ -88,20 +88,68 @@ pub fn open_file_in_editor(path: String) -> AppResult<()> {
         })
 }
 
+/// Открыть системный терминал в папке: Windows Terminal `wt -d`, затем cmd.
+fn spawn_terminal_at(dir: &str) -> AppResult<()> {
+    let mut wt = Command::new("wt.exe");
+    wt.args(["-d", dir]);
+    if wt.spawn().is_ok() {
+        return Ok(());
+    }
+    let mut fallback = Command::new("cmd");
+    fallback.arg("/K").current_dir(dir).creation_flags(CREATE_NEW_CONSOLE);
+    spawn(fallback, "терминал")
+}
+
 /// Открыть терминал в папке: Windows Terminal `wt -d <path>` (путь — отдельный аргумент);
 /// при неудаче — новое окно `cmd` с рабочей папкой через `current_dir` (без интерполяции
 /// пути в командную строку — shell не задействован).
 #[tauri::command]
 pub fn open_terminal(path: String) -> AppResult<()> {
     let p = require_dir(&path)?;
-    let mut wt = Command::new("wt.exe");
-    wt.args(["-d", &p]);
-    if wt.spawn().is_ok() {
-        return Ok(());
+    spawn_terminal_at(&p)
+}
+
+/// Директория для консоли: сама папка, либо родитель файла.
+fn dir_of(p: &str, is_dir: bool) -> Option<String> {
+    if is_dir {
+        Some(p.to_string())
+    } else {
+        Path::new(p)
+            .parent()
+            .map(|x| x.to_string_lossy().into_owned())
+            .filter(|s| !s.is_empty())
     }
-    let mut fallback = Command::new("cmd");
-    fallback.arg("/K").current_dir(&p).creation_flags(CREATE_NEW_CONSOLE);
-    spawn(fallback, "терминал")
+}
+
+/// Кандидаты git-bash.exe: PATH → стандартные пути установки.
+fn git_bash_candidates() -> Vec<String> {
+    let mut v = vec![
+        "git-bash.exe".to_string(),
+        r"C:\Program Files\Git\git-bash.exe".to_string(),
+        r"C:\Program Files (x86)\Git\git-bash.exe".to_string(),
+    ];
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        v.push(format!(r"{}\Programs\Git\git-bash.exe", local.trim_end_matches('\\')));
+    }
+    v
+}
+
+/// Открыть Git Bash в папке ярлыка (файл → родительская папка). Если Git Bash
+/// не найден — фолбэк на системный терминал.
+#[tauri::command]
+pub fn open_git_bash(path: String) -> AppResult<()> {
+    let p = require_dir_or_file(&path)?;
+    let is_dir = Path::new(&p).is_dir();
+    let dir = dir_of(&p, is_dir).ok_or_else(|| AppError {
+        kind: ErrorKind::NotFound,
+        message: "Не удалось определить папку".into(),
+    })?;
+    for exe in git_bash_candidates() {
+        if Command::new(&exe).arg(format!("--cd={}", dir)).spawn().is_ok() {
+            return Ok(());
+        }
+    }
+    spawn_terminal_at(&dir)
 }
 
 /// Открыть URL в браузере по умолчанию через системный обработчик (ShellExecuteW
@@ -156,6 +204,16 @@ mod tests {
         assert_eq!(expand_path("~"), "C:\\Users\\test");
         assert_eq!(expand_path("~/dev/proj"), "C:\\Users\\test\\dev\\proj");
         assert_eq!(expand_path("~\\dev\\proj"), "C:\\Users\\test\\dev\\proj");
+    }
+
+    #[test]
+    fn dir_of_returns_folder_or_parent() {
+        // папка → сама
+        assert_eq!(super::dir_of(r"C:\a\b", true), Some(r"C:\a\b".to_string()));
+        // файл → родительская папка
+        assert_eq!(super::dir_of(r"C:\a\f.txt", false), Some(r"C:\a".to_string()));
+        // файл без директории → None
+        assert_eq!(super::dir_of("f.txt", false), None);
     }
 
     #[test]
