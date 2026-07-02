@@ -53,6 +53,7 @@
   async function delLink(id: number) { await linksApi.remove(id); await loadExtras(); }
   async function addFile() { if (!newFile.label.trim() || !newFile.path.trim()) return; await filesApi.create(project.id, newFile.label.trim(), newFile.path.trim()); newFile = { label: "", path: "" }; await loadExtras(); }
   async function delFile(id: number) { await filesApi.remove(id); await loadExtras(); }
+  async function toggleTerminal(f: FileShortcut) { await filesApi.setTerminal(f.id, !f.showTerminal); await loadExtras(); }
 
   const EMOJI = ["🚀", "🎨", "📊", "🤖", "🛒", "📱", "⚙️", "🧪", "🔌", "📦", "🌐", "🔥"];
   const COLORS = ["#7c7dff", "#c77dff", "#3fb863", "#e0a83a", "#f0616d", "#5b9cff", "#19c3c0", "#ff8b5b"];
@@ -240,6 +241,9 @@
         <div class="link-row">
           <span class="lico"><Icon name="file" class="ic-sm" /></span>
           <div style="flex:1;min-width:0"><div class="lt">{f.label}</div><div class="lu">{f.path}</div></div>
+          <label class="file-term" title="Показывать кнопку консоли на «Обзоре»">
+            <input type="checkbox" checked={f.showTerminal} onchange={() => toggleTerminal(f)} /> консоль
+          </label>
           <button class="mini" title="Удалить" onclick={() => delFile(f.id)}><Icon name="x" class="ic-sm" /></button>
         </div>
       {/each}

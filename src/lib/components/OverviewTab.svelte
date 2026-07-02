@@ -175,6 +175,11 @@
           <div class="link-row" role="button" tabindex="0" style="cursor:pointer" onclick={() => actions.openShortcut(f.path)}>
             <span class="lico"><Icon name="file" class="ic-sm" /></span>
             <div style="flex:1;min-width:0"><div class="lt">{f.label}</div><div class="lu">{f.path}</div></div>
+            {#if f.showTerminal}
+              <button class="lrow-act" title="Открыть консоль (Git Bash) здесь" onclick={(e) => { e.stopPropagation(); actions.openGitBash(f.path); }}>
+                <Icon name="square-terminal" class="ic-sm" />
+              </button>
+            {/if}
             <span class="ext"><Icon name="arrow-up-right" class="ic-sm" /></span>
           </div>
         {/each}

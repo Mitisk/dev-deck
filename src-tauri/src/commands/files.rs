@@ -11,7 +11,7 @@ fn lock<'a>(state: &'a State<AppState>) -> AppResult<MutexGuard<'a, Connection>>
 
 fn row_to_file(conn: &Connection, id: i64) -> AppResult<FileShortcut> {
     Ok(conn.query_row(
-        "SELECT id, project_id, label, path, sort_order FROM files WHERE id = ?1",
+        "SELECT id, project_id, label, path, sort_order, show_terminal FROM files WHERE id = ?1",
         [id],
         |r| Ok(FileShortcut {
             id: r.get(0)?,
@@ -19,6 +19,7 @@ fn row_to_file(conn: &Connection, id: i64) -> AppResult<FileShortcut> {
             label: r.get(2)?,
             path: r.get(3)?,
             sort_order: r.get(4)?,
+            show_terminal: r.get::<_, i64>(5)? != 0,
         }),
     )?)
 }
@@ -66,4 +67,14 @@ pub fn files_delete(state: State<AppState>, id: i64) -> AppResult<()> {
     let conn = lock(&state)?;
     conn.execute("DELETE FROM files WHERE id=?1", [id])?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn files_set_terminal(state: State<AppState>, id: i64, show_terminal: bool) -> AppResult<FileShortcut> {
+    let conn = lock(&state)?;
+    conn.execute(
+        "UPDATE files SET show_terminal=?2 WHERE id=?1",
+        params![id, if show_terminal { 1i64 } else { 0 }],
+    )?;
+    row_to_file(&conn, id)
 }
