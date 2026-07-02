@@ -106,7 +106,7 @@ export type Note = {
 };
 
 export type Link = { id: number; projectId: number; label: string; url: string; icon: string | null; sortOrder: number };
-export type FileShortcut = { id: number; projectId: number; label: string; path: string; sortOrder: number };
+export type FileShortcut = { id: number; projectId: number; label: string; path: string; sortOrder: number; showTerminal: boolean };
 
 export type ProjectCommand = {
   id: number;

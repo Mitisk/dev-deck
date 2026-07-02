@@ -7,3 +7,5 @@ export const create = (projectId: number, label: string, path: string) =>
 export const update = (id: number, label: string, path: string) =>
   call<FileShortcut>("files_update", { id, label, path });
 export const remove = (id: number) => call<void>("files_delete", { id });
+export const setTerminal = (id: number, showTerminal: boolean) =>
+  call<FileShortcut>("files_set_terminal", { id, showTerminal });
