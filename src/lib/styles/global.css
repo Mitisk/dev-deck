@@ -416,6 +416,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 .lrow-act:hover { color: var(--accent); background: var(--hover); }
 
+.file-term { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); flex: none; cursor: pointer; white-space: nowrap; }
+.file-term input { cursor: pointer; accent-color: var(--accent); }
+
 /* git-сводка (миникарточки) */
 .gstats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
 .gstat { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; }
