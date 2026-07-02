@@ -303,7 +303,13 @@
           <span class="acts"><button class="mini" title="Копировать" onclick={() => copy(c.keyPath ?? '')}><Icon name="copy" class="ic-sm" /></button></span>
         </div>
       {/if}
-      {#if c.notes}<div class="cred-row"><span class="k">Заметка</span><span class="val">{c.notes}</span></div>{/if}
+      {#if c.notes}
+        <div class="cred-row">
+          <span class="k">Заметка</span>
+          <span class="val">{c.notes}</span>
+          <span class="acts"><button class="mini" title="Копировать" onclick={() => copy(c.notes ?? "")}><Icon name="copy" class="ic-sm" /></button></span>
+        </div>
+      {/if}
     </div>
   {/each}
 
