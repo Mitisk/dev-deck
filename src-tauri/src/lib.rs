@@ -167,6 +167,7 @@ pub fn run() {
             commands::files::files_create,
             commands::files::files_update,
             commands::files::files_delete,
+            commands::files::files_set_terminal,
             commands::actions::open_shortcut,
             commands::cmds::commands_list,
             commands::cmds::commands_create,

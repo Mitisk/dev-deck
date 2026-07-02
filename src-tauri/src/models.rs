@@ -184,6 +184,7 @@ pub struct FileShortcut {
     pub label: String,
     pub path: String,
     pub sort_order: i64,
+    pub show_terminal: bool,
 }
 
 #[derive(Debug, Serialize)]
