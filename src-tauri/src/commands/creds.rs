@@ -211,6 +211,29 @@ pub fn creds_set_global(state: State<AppState>, id: i64, is_global: bool) -> App
     row_to_cred(&conn, id)
 }
 
+/// Вытащить host[:port] из url: срезать схему `scheme://` и путь `/...`.
+fn extract_host(url: &str) -> &str {
+    let after_scheme = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
+    after_scheme.split(['/', '?', '#']).next().unwrap_or(after_scheme)
+}
+
+/// Собрать ssh-цель для putty из полей username и url.
+/// Если url задан — это адрес сервера (host); username трактуется как логин.
+/// Если url пуст — старое поведение: username = `[user@]host`.
+fn putty_target(username: &str, url: &str) -> String {
+    let user = username.trim();
+    let raw = url.trim();
+    if raw.is_empty() {
+        return user.to_string();
+    }
+    let host = extract_host(raw);
+    if user.is_empty() || user.contains('@') {
+        host.to_string()
+    } else {
+        format!("{}@{}", user, host)
+    }
+}
+
 /// Разбить ssh-цель на host и хвостовой :port (порт — только если все цифры).
 fn split_host_port(target: &str) -> (&str, Option<&str>) {
     if let Some(idx) = target.rfind(':') {
@@ -266,19 +289,19 @@ fn spawn_putty(args: &[String]) -> AppResult<()> {
 #[tauri::command]
 pub fn launch_putty(state: State<AppState>, id: i64) -> AppResult<()> {
     let conn = lock(&state)?;
-    let (username, key_path): (Option<String>, Option<String>) = conn
+    let (username, url, key_path): (Option<String>, Option<String>, Option<String>) = conn
         .query_row(
-            "SELECT username, key_path FROM credentials WHERE id=?1",
+            "SELECT username, url, key_path FROM credentials WHERE id=?1",
             [id],
-            |r| Ok((r.get(0)?, r.get(1)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .optional()?
         .ok_or_else(|| AppError { kind: ErrorKind::NotFound, message: "Кред не найден".into() })?;
-    let target = username.unwrap_or_default();
+    let target = putty_target(&username.unwrap_or_default(), &url.unwrap_or_default());
     if target.trim().is_empty() {
         return Err(AppError {
             kind: ErrorKind::Validation,
-            message: "У креда не указан хост (поле «Логин / хост»)".into(),
+            message: "У креда не указан хост (заполните URL или «Логин / хост»)".into(),
         });
     }
     let has_key = key_path.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false);
@@ -310,6 +333,20 @@ mod tests {
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         db::migrations::run(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn putty_target_uses_url_as_host_and_username_as_login() {
+        // url задан → это хост; username — логин
+        assert_eq!(putty_target("root", "1.2.3.4"), "root@1.2.3.4");
+        // схему и путь у url срезаем, порт сохраняем
+        assert_eq!(putty_target("root", "ssh://1.2.3.4:2222/x"), "root@1.2.3.4:2222");
+        // логина нет → только хост из url
+        assert_eq!(putty_target("", "1.2.3.4"), "1.2.3.4");
+        // url пуст → старое поведение: username = [user@]host
+        assert_eq!(putty_target("root@1.2.3.4", ""), "root@1.2.3.4");
+        // оба пусты → пусто
+        assert_eq!(putty_target("", ""), "");
     }
 
     #[test]
