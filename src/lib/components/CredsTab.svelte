@@ -250,7 +250,7 @@
         <span class="badge-type" style="color:var(--accent);background:var(--accent-soft)">{typeLabel(c.type)}</span>
         {#if c.isGlobal}<span class="cred-global" title="Во всех проектах"><Icon name="pin" class="ic-sm" /></span>{/if}
         <span class="cred-acts">
-          {#if c.type === 'ssh'}
+          {#if c.url || c.username}
             <button class="mini" title="Открыть в PuTTY" onclick={() => openPutty(c.id)}><Icon name="square-terminal" class="ic-sm" /></button>
           {/if}
           <button class="mini cred-del" title="Редактировать" onclick={() => openEdit(c)}><Icon name="pencil" class="ic-sm" /></button>
