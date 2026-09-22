@@ -3,7 +3,9 @@
   import * as creds from "$lib/api/creds";
   import { copy, copySecret } from "$lib/clipboard";
   import { pushToast } from "$lib/stores/toasts";
+  import { projects } from "$lib/stores/projects";
   import Icon from "./Icon.svelte";
+  import ProjectIcon from "./ProjectIcon.svelte";
   import { reorderIds } from "$lib/credsOrder";
   import * as actions from "$lib/api/actions";
   import { generatePassword, passwordStrength } from "$lib/password";
@@ -165,6 +167,21 @@
     await load();
   }
 
+  // --- копирование креда в другой проект ---
+  let copying = $state<Credential | null>(null);
+  // кандидаты: неархивные проекты, кроме текущего
+  const copyTargets = $derived($projects.filter((p) => p.status !== "archived" && p.id !== project.id));
+  async function copyToProject(targetId: number) {
+    if (!copying) return;
+    const id = copying.id;
+    const target = copyTargets.find((p) => p.id === targetId);
+    copying = null;
+    try {
+      await creds.copyTo(id, targetId);
+      pushToast("Скопировано", `Скопировано в ${target?.name ?? "проект"}`, "ok");
+    } catch { /* тост из api/client.ts */ }
+  }
+
   async function openPutty(id: number) {
     try {
       await actions.launchPutty(id);
@@ -267,6 +284,9 @@
         <span class="cred-acts">
           {#if c.url || c.username}
             <button class="mini" title="Открыть в PuTTY" onclick={() => openPutty(c.id)}><Icon name="square-terminal" class="ic-sm" /></button>
+          {/if}
+          {#if !c.isGlobal}
+            <button class="mini" title="Копировать в другой проект…" onclick={() => (copying = c)}><Icon name="copy-plus" class="ic-sm" /></button>
           {/if}
           <button class="mini cred-del" title="Редактировать" onclick={() => openEdit(c)}><Icon name="pencil" class="ic-sm" /></button>
         </span>
@@ -389,6 +409,35 @@
         <span class="spacer"></span>
         <button class="btn-ghost" onclick={() => (editing = null)}>Отмена</button>
         <button class="btn-primary" onclick={save}><Icon name="check" class="ic ic-sm" /> Сохранить</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if copying}
+  <div class="modal-scrim open" role="dialog" tabindex="-1" aria-label="Копировать кред в проект"
+       onmousedown={(e) => { if (e.currentTarget === e.target) (copying = null); }}
+       onkeydown={(e) => { if (e.key === "Escape") (copying = null); }}>
+    <div class="modal" style="max-width:420px">
+      <div class="modal-head">
+        <span class="mh-ico"><Icon name="copy-plus" class="ic" /></span>
+        <span class="t">Копировать «{copying.label}» в проект</span>
+        <button class="icon-btn x" onclick={() => (copying = null)}><Icon name="x" class="ic" /></button>
+      </div>
+      <div class="modal-body">
+        <div style="color:var(--muted);font-size:12.5px">Будет создана независимая копия: изменения одной записи не затрагивают другую.</div>
+        {#if copyTargets.length}
+          <div class="pick-list">
+            {#each copyTargets as p (p.id)}
+              <button class="pick-row" style="--p-color:{p.color ?? 'var(--accent)'}" onclick={() => copyToProject(p.id)}>
+                {#if p.icon}<span class="emoji"><ProjectIcon icon={p.icon} size={16} /></span>{:else}<span class="dot"></span>{/if}
+                <span class="nm">{p.name}</span>
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <div style="padding:12px;color:var(--muted);text-align:center">Нет других проектов</div>
+        {/if}
       </div>
     </div>
   </div>

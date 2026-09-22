@@ -150,6 +150,49 @@ pub fn creds_delete(state: State<AppState>, id: i64) -> AppResult<()> {
     Ok(())
 }
 
+/// Скопировать кред в другой проект как независимую запись (новый id).
+/// Зашифрованный blob копируется как есть — шифрование не привязано к id строки.
+/// Глобальные креды не копируем (они и так видны везде).
+fn copy_cred(conn: &Connection, id: i64, target_project_id: i64) -> AppResult<i64> {
+    let is_global: Option<i64> = conn
+        .query_row("SELECT is_global FROM credentials WHERE id=?1", [id], |r| r.get(0))
+        .optional()?;
+    match is_global {
+        None => return Err(AppError { kind: ErrorKind::NotFound, message: "Кред не найден".into() }),
+        Some(g) if g != 0 => {
+            return Err(AppError { kind: ErrorKind::Validation, message: "Глобальный кред нельзя копировать: он и так виден во всех проектах".into() })
+        }
+        _ => {}
+    }
+    let target_exists: Option<i64> = conn
+        .query_row("SELECT id FROM projects WHERE id=?1", [target_project_id], |r| r.get(0))
+        .optional()?;
+    if target_exists.is_none() {
+        return Err(AppError { kind: ErrorKind::NotFound, message: "Проект не найден".into() });
+    }
+    let next: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(sort_order),0)+1 FROM credentials WHERE project_id=?1",
+        [target_project_id],
+        |r| r.get(0),
+    )?;
+    conn.execute(
+        "INSERT INTO credentials(project_id, label, type, username, url, secret_encrypted, notes, sort_order, key_path, startup_cmd, is_global)
+         SELECT ?2, label, type, username, url, secret_encrypted, notes, ?3, key_path, startup_cmd, 0
+         FROM credentials WHERE id=?1",
+        params![id, target_project_id, next],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+#[tauri::command]
+pub fn creds_copy(state: State<AppState>, id: i64, target_project_id: i64) -> AppResult<Credential> {
+    let conn = lock(&state)?;
+    let tx = conn.unchecked_transaction()?;
+    let new_id = copy_cred(&conn, id, target_project_id)?;
+    tx.commit()?;
+    row_to_cred(&conn, new_id)
+}
+
 /// Применить порядок: локальные пишут в credentials.sort_order, глобальные — в cred_order.
 fn reorder_creds(conn: &Connection, project_id: i64, ids: &[i64]) -> AppResult<()> {
     for (i, id) in ids.iter().enumerate() {
@@ -472,6 +515,60 @@ mod tests {
         // пусто → скрипт не нужен
         assert_eq!(startup_script(""), None);
         assert_eq!(startup_script("   "), None);
+    }
+
+    #[test]
+    fn copy_cred_creates_independent_copy_in_target() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P1','active',0)", []).unwrap();
+        let p1 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P2','active',1)", []).unwrap();
+        let p2 = conn.last_insert_rowid();
+        // в P2 уже есть кред с sort_order=4 → копия должна встать после него
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order) VALUES(?1,'X','note',4)", [p2]).unwrap();
+        let blob = crypto::encrypt(b"pw").unwrap();
+        conn.execute(
+            "INSERT INTO credentials(project_id,label,type,username,url,secret_encrypted,notes,sort_order,key_path,startup_cmd)
+             VALUES(?1,'Srv','ssh','root','1.2.3.4',?2,'n',0,'k.ppk','cd /home')",
+            params![p1, blob],
+        ).unwrap();
+        let src = conn.last_insert_rowid();
+
+        let new_id = copy_cred(&conn, src, p2).unwrap();
+        assert_ne!(new_id, src);
+        let c = row_to_cred(&conn, new_id).unwrap();
+        assert_eq!(c.project_id, p2);
+        assert_eq!(c.label, "Srv");
+        assert_eq!(c.kind, "ssh");
+        assert_eq!(c.username.as_deref(), Some("root"));
+        assert_eq!(c.url.as_deref(), Some("1.2.3.4"));
+        assert_eq!(c.notes.as_deref(), Some("n"));
+        assert_eq!(c.key_path.as_deref(), Some("k.ppk"));
+        assert_eq!(c.startup_cmd.as_deref(), Some("cd /home"));
+        assert!(!c.is_global);
+        assert_eq!(c.sort_order, 5);
+        assert!(c.has_secret);
+        let stored: Vec<u8> = conn.query_row("SELECT secret_encrypted FROM credentials WHERE id=?1", [new_id], |r| r.get(0)).unwrap();
+        assert_eq!(crypto::decrypt(&stored).unwrap(), b"pw");
+
+        // копия независима: правка оригинала её не касается
+        conn.execute("UPDATE credentials SET label='Changed' WHERE id=?1", [src]).unwrap();
+        assert_eq!(row_to_cred(&conn, new_id).unwrap().label, "Srv");
+    }
+
+    #[test]
+    fn copy_cred_rejects_global_and_missing() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P1','active',0)", []).unwrap();
+        let p1 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'G','note',0,1)", [p1]).unwrap();
+        let g = conn.last_insert_rowid();
+        conn.execute("INSERT INTO credentials(project_id,label,type,sort_order,is_global) VALUES(?1,'L','note',0,0)", [p1]).unwrap();
+        let l = conn.last_insert_rowid();
+
+        assert!(matches!(copy_cred(&conn, g, p1), Err(AppError { kind: ErrorKind::Validation, .. })));
+        assert!(matches!(copy_cred(&conn, 9999, p1), Err(AppError { kind: ErrorKind::NotFound, .. })));
+        assert!(matches!(copy_cred(&conn, l, 9999), Err(AppError { kind: ErrorKind::NotFound, .. })));
     }
 
     #[test]

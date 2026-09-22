@@ -886,3 +886,16 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .hs-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; min-width: 56px; }
 .hs-lat { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
 .hs-code { font-family: var(--font-mono); font-size: 11px; color: var(--muted-2); }
+
+/* Список выбора проекта (модалка «копировать кред в проект») */
+.pick-list { display: flex; flex-direction: column; gap: 2px; }
+.pick-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 10px; border: 0; border-radius: var(--r-md); background: none;
+  color: var(--text-2); font-size: 13px; font-weight: 500; text-align: left; cursor: pointer;
+  transition: background var(--t);
+}
+.pick-row:hover { background: var(--hover); color: var(--text); }
+.pick-row .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--p-color); flex: none; }
+.pick-row .emoji { font-size: 15px; line-height: 1; display: inline-flex; }
+.pick-row .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -156,6 +156,7 @@ pub fn run() {
             commands::creds::creds_reorder,
             commands::creds::launch_putty,
             commands::creds::creds_set_global,
+            commands::creds::creds_copy,
             commands::notes::notes_list,
             commands::notes::notes_create,
             commands::notes::notes_update,

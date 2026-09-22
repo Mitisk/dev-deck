@@ -21,3 +21,6 @@ export const reorder = (projectId: number, ids: number[]) =>
   call<void>("creds_reorder", { projectId, ids });
 export const setGlobal = (id: number, isGlobal: boolean) =>
   call<Credential>("creds_set_global", { id, isGlobal });
+// Копия креда в другой проект (независимая запись).
+export const copyTo = (id: number, targetProjectId: number) =>
+  call<Credential>("creds_copy", { id, targetProjectId });
