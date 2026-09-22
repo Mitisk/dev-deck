@@ -15,9 +15,20 @@ pub struct Project {
     pub health_url: Option<String>,
     pub pinned: bool,
     pub sort_order: i64,
+    /// Папка в сайдбаре; None = корень.
+    pub group_id: Option<i64>,
     pub tags: Vec<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// Папка проектов в сайдбаре (один уровень).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectGroup {
+    pub id: i64,
+    pub name: String,
+    pub sort_order: i64,
 }
 
 /// Вход на создание/обновление проекта.
