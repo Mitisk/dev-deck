@@ -8,6 +8,7 @@
   import * as gitApi from "$lib/api/git";
   import * as actions from "$lib/api/actions";
   import { activeTab } from "$lib/stores/ui";
+  import { features } from "$lib/stores/features";
   import { onMount, onDestroy } from "svelte";
   import Icon from "./Icon.svelte";
 
@@ -33,7 +34,7 @@
   let unlisten: Array<() => void> = [];
 
   let reqId = 0;
-  async function load() {
+  async function load(withTasks: boolean) {
     const my = ++reqId;
     try {
       const repo = project.repoPath ?? project.path ?? "";
@@ -41,14 +42,15 @@
         linksApi.list(project.id),
         filesApi.list(project.id),
         cmdsApi.list(project.id),
-        tasksApi.list(project.id),
-        columnsApi.list(project.id),
+        // задачи выключены в настройках → секция скрыта, данные не грузим
+        withTasks ? tasksApi.list(project.id) : Promise.resolve([] as Task[]),
+        withTasks ? columnsApi.list(project.id) : Promise.resolve([] as TaskColumn[]),
         repo ? gitApi.status(repo) : Promise.resolve(null),
       ]);
       if (my === reqId) { links = l; files = f; cmds = c; tasks = ts; columns = cols; git = g; }
     } catch { /* тост из api/client.ts */ }
   }
-  $effect(() => { project.id; load(); });
+  $effect(() => { project.id; load($features.tasks); });
 
   // ближайшие задачи: не в «выполненных» колонках, по sortOrder, до 5
   const doneKeys = $derived(new Set(columns.filter((c) => c.isDone).map((c) => c.key)));
@@ -187,6 +189,7 @@
     </div>
   {/if}
 
+  {#if $features.tasks}
   <div>
     <h3 class="section-title"><Icon name="list-checks" class="ic-sm" /> Ближайшие задачи
       <button class="more" onclick={() => activeTab.set("tasks")} style="margin-left:auto">Все задачи →</button></h3>
@@ -204,6 +207,7 @@
       </div>
     </div>
   </div>
+  {/if}
 </div>
 
 {#if logFor !== null}
