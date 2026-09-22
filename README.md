@@ -42,7 +42,6 @@ Release с установщиками и `latest.json`. Через нескол�
 | Секрет | Значение |
 |---|---|
 | `TAURI_SIGNING_PRIVATE_KEY` | содержимое файла `~/.tauri/devdeck.key` целиком |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | пусто (ключ без пароля) |
 
 Локальная релизная сборка тоже требует ключ (иначе `npm run tauri build` падает на
 подписи updater-артефактов), в Git Bash:
