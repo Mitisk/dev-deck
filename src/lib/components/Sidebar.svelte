@@ -6,6 +6,7 @@
   import { changedProjects } from "$lib/stores/changed";
   import { displayName, initials } from "$lib/stores/user";
   import { user } from "$lib/stores/user";
+  import { updateState, installUpdate, checkForUpdate, resetUpdateState } from "$lib/stores/updater";
   import * as projectsApi from "$lib/api/projects";
   import * as groupsApi from "$lib/api/groups";
   import { layoutSidebar, planProjectDrop, sectionOf, type Section } from "$lib/sidebarLayout";
@@ -313,6 +314,32 @@
       <div class="sb-empty">Ничего не найдено</div>
     {/if}
   </div>
+
+  {#if $updateState.status === "available"}
+    <div class="sb-update">
+      <Icon name="sparkles" class="ic-sm" />
+      <div class="txt">Доступна версия <b>{$updateState.version}</b></div>
+      <button class="sb-update-btn" onclick={installUpdate}><Icon name="arrow-down-to-line" class="ic-sm" /> Обновить</button>
+    </div>
+  {:else if $updateState.status === "downloading"}
+    <div class="sb-update busy">
+      <Icon name="loader-circle" class="ic-sm spin" />
+      <div class="txt">Скачивание {$updateState.version}{#if $updateState.percent !== null} · {$updateState.percent}%{:else}…{/if}
+        <div class="bar"><i style="width:{$updateState.percent ?? 30}%" class:indeterminate={$updateState.percent === null}></i></div>
+      </div>
+    </div>
+  {:else if $updateState.status === "ready"}
+    <div class="sb-update busy">
+      <Icon name="loader-circle" class="ic-sm spin" />
+      <div class="txt">Установка и перезапуск…</div>
+    </div>
+  {:else if $updateState.status === "error"}
+    <div class="sb-update err">
+      <Icon name="triangle-alert" class="ic-sm" />
+      <div class="txt" title={$updateState.message}>Обновление не удалось</div>
+      <button class="sb-update-btn" onclick={() => { resetUpdateState(); void checkForUpdate(); }}>Повторить</button>
+    </div>
+  {/if}
 
   <div class="sb-foot">
     <span class="avatar">{$initials}</span>

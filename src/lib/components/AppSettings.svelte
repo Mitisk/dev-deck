@@ -7,6 +7,7 @@
   import * as security from "$lib/api/security";
   import { user, loadUser } from "$lib/stores/user";
   import { features, toggleFeature } from "$lib/stores/features";
+  import { updateState, appVersion, autoCheck, toggleAutoCheck, checkForUpdate, installUpdate } from "$lib/stores/updater";
   import * as userApi from "$lib/api/user";
   import type { BackupInfo, CryptoStatus } from "$lib/types";
   import { save, open } from "@tauri-apps/plugin-dialog";
@@ -181,6 +182,30 @@
           <div style="display:flex;align-items:center;gap:10px">
             <button class="btn-ghost" disabled={busy} onclick={doBackup}><Icon name="database-backup" class="ic-sm" /> Сделать бэкап</button>
             <span style="color:var(--muted);font-size:12px">{backups.length} копий в backups/</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Обновления</label>
+          <div style="color:var(--muted);font-size:12px;margin-bottom:8px">
+            Версия: <b style="color:var(--text)">{$appVersion || "—"}</b>
+            {#if $updateState.status === "available"} · доступна <b style="color:var(--accent)">{$updateState.version}</b>
+            {:else if $updateState.status === "none"} · у вас последняя версия
+            {:else if $updateState.status === "checking"} · проверяю…
+            {:else if $updateState.status === "downloading"} · скачивание {$updateState.percent ?? ""}{$updateState.percent !== null ? "%" : "…"}
+            {:else if $updateState.status === "error"} · <span style="color:var(--danger)">{$updateState.message}</span>{/if}
+          </div>
+          <div class="toggle-row" style="margin-bottom:8px">
+            <button class="toggle" class:on={$autoCheck} onclick={toggleAutoCheck} aria-pressed={$autoCheck} aria-label="Проверять при запуске"></button>
+            <div class="tl">Проверять при запуске<small>Один запрос к GitHub Releases, без передачи данных о вас.</small></div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn-ghost" disabled={$updateState.status === "checking" || $updateState.status === "downloading"} onclick={() => checkForUpdate()}>
+              <Icon name="refresh-cw" class="ic-sm" /> Проверить сейчас
+            </button>
+            {#if $updateState.status === "available"}
+              <button class="btn-primary" onclick={installUpdate}><Icon name="arrow-down-to-line" class="ic-sm" /> Обновить до {$updateState.version}</button>
+            {/if}
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "DevDeck",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "com.devdeck.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -33,6 +33,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,5 +41,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFDQzgzMTZCMzBEMzZBQjIKUldTeWF0TXdhekhJcktkeEpYeGw5NmxCSDgxU0lBSjJGZlBLWGxlbklUWTQ3WUN3dEhsSnk1T3AK",
+      "endpoints": ["https://github.com/Mitisk/dev-deck/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

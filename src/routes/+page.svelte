@@ -11,8 +11,10 @@
   import { loadProjects, activeProjectId } from "$lib/stores/projects";
   import { startWatchEvents } from "$lib/stores/changed";
   import { loadUser } from "$lib/stores/user";
+  import { autoCheck, checkForUpdate, loadAppVersion } from "$lib/stores/updater";
   import * as watchApi from "$lib/api/watch";
   import { onMount } from "svelte";
+  import { get } from "svelte/store";
 
   onMount(async () => {
     await loadUser();
@@ -21,6 +23,9 @@
     void watchApi.resync(); // пересобрать вотчер под текущие проекты
     const { listen } = await import("@tauri-apps/api/event");
     await listen<number>("tray-open-project", (e) => activeProjectId.set(e.payload));
+    void loadAppVersion();
+    // фоновая проверка обновлений после старта (без тостов, если сети нет или всё актуально)
+    if (get(autoCheck)) setTimeout(() => void checkForUpdate({ silent: true }), 3000);
   });
 </script>
 
