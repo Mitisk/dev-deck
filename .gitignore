@@ -12,3 +12,6 @@ vite.config.ts.timestamp-*
 
 # Personal Claude Code settings (not shared)
 .claude/settings.local.json
+
+# Внутренние спеки и планы (не публикуются)
+/docs
