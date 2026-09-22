@@ -91,6 +91,7 @@
   let isNew = $state(false);
   let fLabel = $state(""), fType = $state<CredType>("login"), fUser = $state(""), fUrl = $state(""), fNotes = $state(""), fSecret = $state("");
   let fKeyPath = $state("");
+  let fStartupCmd = $state("");
   let fGlobal = $state(false);
   let genLen = $state(20);
 
@@ -127,13 +128,13 @@
 
   function openNew() {
     isNew = true;
-    editing = { id: 0, projectId: project.id, label: "", type: "login", username: null, url: null, notes: null, sortOrder: 0, hasSecret: false, keyPath: null, isGlobal: false };
-    fLabel = ""; fType = "login"; fUser = ""; fUrl = ""; fNotes = ""; fSecret = ""; fKeyPath = ""; fGlobal = false;
+    editing = { id: 0, projectId: project.id, label: "", type: "login", username: null, url: null, notes: null, sortOrder: 0, hasSecret: false, keyPath: null, isGlobal: false, startupCmd: null };
+    fLabel = ""; fType = "login"; fUser = ""; fUrl = ""; fNotes = ""; fSecret = ""; fKeyPath = ""; fStartupCmd = ""; fGlobal = false;
   }
   function openEdit(c: Credential) {
     isNew = false;
     editing = c;
-    fLabel = c.label; fType = c.type; fUser = c.username ?? ""; fUrl = c.url ?? ""; fNotes = c.notes ?? ""; fSecret = ""; fKeyPath = c.keyPath ?? ""; fGlobal = c.isGlobal;
+    fLabel = c.label; fType = c.type; fUser = c.username ?? ""; fUrl = c.url ?? ""; fNotes = c.notes ?? ""; fSecret = ""; fKeyPath = c.keyPath ?? ""; fStartupCmd = c.startupCmd ?? ""; fGlobal = c.isGlobal;
   }
   async function save() {
     if (!editing) return;
@@ -146,6 +147,8 @@
       url: fUrl.trim() || null,
       notes: fNotes.trim() || null,
       keyPath: fKeyPath.trim() || null,
+      // команда имеет смысл только для ssh; для других типов не сохраняем
+      startupCmd: fType === "ssh" ? fStartupCmd.trim() || null : null,
       // при редактировании пустой секрет = «не менять» (undefined); при создании — задать
       secret: isNew ? (fSecret || null) : fSecret ? fSecret : undefined,
     };
@@ -303,6 +306,13 @@
           <span class="acts"><button class="mini" title="Копировать" onclick={() => copy(c.keyPath ?? '')}><Icon name="copy" class="ic-sm" /></button></span>
         </div>
       {/if}
+      {#if c.startupCmd}
+        <div class="cred-row">
+          <span class="k">Команда</span>
+          <span class="val mono">{c.startupCmd}</span>
+          <span class="acts"><button class="mini" title="Копировать" onclick={() => copy(c.startupCmd ?? '')}><Icon name="copy" class="ic-sm" /></button></span>
+        </div>
+      {/if}
       {#if c.notes}
         <div class="cred-row">
           <span class="k">Заметка</span>
@@ -343,6 +353,9 @@
                 <input id="c-key" class="tin mono" placeholder="C:\keys\id.ppk" bind:value={fKeyPath} />
                 <button class="btn-ghost" type="button" onclick={pickKey} title="Выбрать файл"><Icon name="folder-open" class="ic-sm" /></button>
               </div>
+            </div>
+            <div class="field"><label for="c-startup">Команда при запуске <span style="color:var(--muted-2)">(выполнится на сервере сразу после входа)</span></label>
+              <input id="c-startup" class="tin mono" placeholder="cd /var/www" bind:value={fStartupCmd} />
             </div>
           {/if}
         </div>

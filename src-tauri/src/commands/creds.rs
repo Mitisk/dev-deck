@@ -15,7 +15,7 @@ fn row_to_cred(conn: &Connection, id: i64) -> AppResult<Credential> {
     Ok(conn.query_row(
         "SELECT id, project_id, label, type, username, url, notes, sort_order,
                 (secret_encrypted IS NOT NULL AND length(secret_encrypted) > 0),
-                key_path, is_global
+                key_path, is_global, startup_cmd
          FROM credentials WHERE id = ?1",
         [id],
         |r| {
@@ -31,6 +31,7 @@ fn row_to_cred(conn: &Connection, id: i64) -> AppResult<Credential> {
                 has_secret: r.get::<_, i64>(8)? != 0,
                 key_path: r.get(9)?,
                 is_global: r.get::<_, i64>(10)? != 0,
+                startup_cmd: r.get(11)?,
             })
         },
     )?)
@@ -104,8 +105,8 @@ pub fn creds_create(state: State<AppState>, project_id: i64, input: CredInput) -
         _ => None,
     };
     conn.execute(
-        "INSERT INTO credentials(project_id, label, type, username, url, secret_encrypted, notes, sort_order, key_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO credentials(project_id, label, type, username, url, secret_encrypted, notes, sort_order, key_path, startup_cmd)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             project_id,
             input.label.trim(),
@@ -116,6 +117,7 @@ pub fn creds_create(state: State<AppState>, project_id: i64, input: CredInput) -
             input.notes,
             next,
             input.key_path,
+            input.startup_cmd,
         ],
     )?;
     row_to_cred(&conn, conn.last_insert_rowid())
@@ -126,9 +128,9 @@ pub fn creds_update(state: State<AppState>, id: i64, input: CredInput) -> AppRes
     validate(&input)?;
     let conn = lock(&state)?;
     let n = conn.execute(
-        "UPDATE credentials SET label=?2, type=?3, username=?4, url=?5, notes=?6, key_path=?7, updated_at=datetime('now')
+        "UPDATE credentials SET label=?2, type=?3, username=?4, url=?5, notes=?6, key_path=?7, startup_cmd=?8, updated_at=datetime('now')
          WHERE id=?1",
-        params![id, input.label.trim(), input.kind, input.username, input.url, input.notes, input.key_path],
+        params![id, input.label.trim(), input.kind, input.username, input.url, input.notes, input.key_path, input.startup_cmd],
     )?;
     if n == 0 {
         return Err(AppError { kind: ErrorKind::NotFound, message: "Кред не найден".into() });
@@ -250,7 +252,14 @@ fn split_host_port(target: &str) -> (&str, Option<&str>) {
 
 /// argv для putty (без имени программы). Политика «ключ → опц. пароль»:
 /// есть key_path → `-i key` (пароль НЕ передаём); иначе есть пароль → `-pw`.
-fn build_putty_args(target: &str, key_path: Option<&str>, password: Option<&str>) -> Vec<String> {
+/// `script_path` — файл со стартовой командой для `-m` (плюс `-t`, чтобы
+/// сессия осталась интерактивной).
+fn build_putty_args(
+    target: &str,
+    key_path: Option<&str>,
+    password: Option<&str>,
+    script_path: Option<&str>,
+) -> Vec<String> {
     let (host, port) = split_host_port(target);
     let mut args = vec!["-ssh".to_string(), host.to_string()];
     if let Some(p) = port {
@@ -264,7 +273,40 @@ fn build_putty_args(target: &str, key_path: Option<&str>, password: Option<&str>
         args.push("-pw".to_string());
         args.push(pw.to_string());
     }
+    if let Some(m) = script_path {
+        args.push("-t".to_string());
+        args.push("-m".to_string());
+        args.push(m.to_string());
+    }
     args
+}
+
+/// Содержимое скрипта для `putty -m`: команда пользователя, затем интерактивная
+/// login-оболочка. Разделитель `;` — при ошибке команды окно не закрывается.
+/// Пустая/пробельная команда → None (скрипт не нужен).
+fn startup_script(cmd: &str) -> Option<String> {
+    let cmd = cmd.trim();
+    if cmd.is_empty() {
+        return None;
+    }
+    Some(format!("{}; exec $SHELL -l\n", cmd))
+}
+
+/// Записать скрипт во временный файл и запланировать его удаление (PuTTY
+/// читает файл при старте). Возвращает путь к файлу.
+fn write_startup_script(script: &str) -> AppResult<String> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let path = std::env::temp_dir().join(format!("devdeck-putty-{}-{}.txt", std::process::id(), nanos));
+    std::fs::write(&path, script).map_err(|e| AppError::internal(format!("Не удалось записать скрипт PuTTY: {e}")))?;
+    let cleanup = path.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(15));
+        let _ = std::fs::remove_file(cleanup);
+    });
+    Ok(path.to_string_lossy().into_owned())
 }
 
 /// Запустить putty.exe: PATH → стандартные пути установки.
@@ -289,11 +331,11 @@ fn spawn_putty(args: &[String]) -> AppResult<()> {
 #[tauri::command]
 pub fn launch_putty(state: State<AppState>, id: i64) -> AppResult<()> {
     let conn = lock(&state)?;
-    let (username, url, key_path): (Option<String>, Option<String>, Option<String>) = conn
+    let (username, url, key_path, startup_cmd): (Option<String>, Option<String>, Option<String>, Option<String>) = conn
         .query_row(
-            "SELECT username, url, key_path FROM credentials WHERE id=?1",
+            "SELECT username, url, key_path, startup_cmd FROM credentials WHERE id=?1",
             [id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
         .optional()?
         .ok_or_else(|| AppError { kind: ErrorKind::NotFound, message: "Кред не найден".into() })?;
@@ -318,7 +360,11 @@ pub fn launch_putty(state: State<AppState>, id: i64) -> AppResult<()> {
             _ => None,
         }
     };
-    let args = build_putty_args(target.trim(), key_path.as_deref(), password.as_deref());
+    let script_path = match startup_cmd.as_deref().and_then(startup_script) {
+        Some(s) => Some(write_startup_script(&s)?),
+        None => None,
+    };
+    let args = build_putty_args(target.trim(), key_path.as_deref(), password.as_deref(), script_path.as_deref());
     spawn_putty(&args)
 }
 
@@ -396,20 +442,49 @@ mod tests {
 
     #[test]
     fn build_putty_args_prefers_key_over_password() {
-        let a = build_putty_args("root@1.2.3.4", Some("k.ppk"), Some("pw"));
+        let a = build_putty_args("root@1.2.3.4", Some("k.ppk"), Some("pw"), None);
         assert_eq!(a, vec!["-ssh", "root@1.2.3.4", "-i", "k.ppk"]);
         assert!(!a.iter().any(|x| x == "-pw"));
     }
 
     #[test]
     fn build_putty_args_uses_password_when_no_key() {
-        let a = build_putty_args("host:2222", None, Some("secret"));
+        let a = build_putty_args("host:2222", None, Some("secret"), None);
         assert_eq!(a, vec!["-ssh", "host", "-P", "2222", "-pw", "secret"]);
     }
 
     #[test]
     fn build_putty_args_bare_host() {
-        assert_eq!(build_putty_args("host", None, None), vec!["-ssh", "host"]);
+        assert_eq!(build_putty_args("host", None, None, None), vec!["-ssh", "host"]);
+    }
+
+    #[test]
+    fn build_putty_args_appends_script_flags() {
+        let a = build_putty_args("host:22", Some("k.ppk"), None, Some(r"C:\tmp\s.txt"));
+        assert_eq!(a, vec!["-ssh", "host", "-P", "22", "-i", "k.ppk", "-t", "-m", r"C:\tmp\s.txt"]);
+    }
+
+    #[test]
+    fn startup_script_wraps_command_with_interactive_shell() {
+        assert_eq!(startup_script("cd /home").as_deref(), Some("cd /home; exec $SHELL -l\n"));
+        // пробелы по краям срезаем
+        assert_eq!(startup_script("  cd /var/www  ").as_deref(), Some("cd /var/www; exec $SHELL -l\n"));
+        // пусто → скрипт не нужен
+        assert_eq!(startup_script(""), None);
+        assert_eq!(startup_script("   "), None);
+    }
+
+    #[test]
+    fn row_to_cred_reads_startup_cmd() {
+        let conn = mem();
+        conn.execute("INSERT INTO projects(name,status,sort_order) VALUES('P','active',0)", []).unwrap();
+        let pid = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO credentials(project_id,label,type,sort_order,startup_cmd) VALUES(?1,'S','ssh',0,'cd /home')",
+            [pid],
+        ).unwrap();
+        let c = row_to_cred(&conn, conn.last_insert_rowid()).unwrap();
+        assert_eq!(c.startup_cmd.as_deref(), Some("cd /home"));
     }
 
     #[test]

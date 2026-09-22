@@ -95,6 +95,7 @@ export type Credential = {
   hasSecret: boolean;
   keyPath: string | null;
   isGlobal: boolean;
+  startupCmd: string | null; // команда после входа (PuTTY, тип ssh)
 };
 
 export type Note = {

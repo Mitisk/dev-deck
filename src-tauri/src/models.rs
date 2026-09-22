@@ -139,6 +139,8 @@ pub struct Credential {
     pub has_secret: bool,
     pub key_path: Option<String>,
     pub is_global: bool,
+    /// Команда, выполняемая на сервере сразу после входа (PuTTY, тип ssh).
+    pub startup_cmd: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,6 +155,7 @@ pub struct CredInput {
     /// None = не менять секрет (при update); Some("") = очистить; Some(x) = задать.
     pub secret: Option<String>,
     pub key_path: Option<String>,
+    pub startup_cmd: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

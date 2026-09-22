@@ -12,6 +12,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (6, include_str!("../../migrations/0006_cred_key_path.sql")),
     (7, include_str!("../../migrations/0007_global_creds.sql")),
     (8, include_str!("../../migrations/0008_files_show_terminal.sql")),
+    (9, include_str!("../../migrations/0009_cred_startup_cmd.sql")),
 ];
 
 /// Применяет все миграции с номером выше текущего user_version.
@@ -39,7 +40,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         assert_eq!(schema_version(&conn).unwrap(), 0);
         run(&conn).unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 8);
+        assert_eq!(schema_version(&conn).unwrap(), 9);
         let count: i64 = conn
             .query_row(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='projects'",
@@ -67,7 +68,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         run(&conn).unwrap();
-        assert_eq!(schema_version(&conn).unwrap(), 8);
+        assert_eq!(schema_version(&conn).unwrap(), 9);
         let tc: i64 = conn.query_row("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='task_columns'", [], |r| r.get(0)).unwrap();
         assert_eq!(tc, 1);
         let lbl: i64 = conn.query_row("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='labels'", [], |r| r.get(0)).unwrap();
