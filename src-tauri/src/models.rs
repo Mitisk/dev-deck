@@ -15,9 +15,20 @@ pub struct Project {
     pub health_url: Option<String>,
     pub pinned: bool,
     pub sort_order: i64,
+    /// Папка в сайдбаре; None = корень.
+    pub group_id: Option<i64>,
     pub tags: Vec<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// Папка проектов в сайдбаре (один уровень).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectGroup {
+    pub id: i64,
+    pub name: String,
+    pub sort_order: i64,
 }
 
 /// Вход на создание/обновление проекта.
@@ -139,6 +150,8 @@ pub struct Credential {
     pub has_secret: bool,
     pub key_path: Option<String>,
     pub is_global: bool,
+    /// Команда, выполняемая на сервере сразу после входа (PuTTY, тип ssh).
+    pub startup_cmd: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,6 +166,7 @@ pub struct CredInput {
     /// None = не менять секрет (при update); Some("") = очистить; Some(x) = задать.
     pub secret: Option<String>,
     pub key_path: Option<String>,
+    pub startup_cmd: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

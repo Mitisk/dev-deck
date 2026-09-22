@@ -9,6 +9,7 @@ export type CredInput = {
   notes?: string | null;
   secret?: string | null; // undefined/null = не менять (при update)
   keyPath?: string | null;
+  startupCmd?: string | null;
 };
 
 export const list = (projectId: number) => call<Credential[]>("creds_list", { projectId });
@@ -20,3 +21,6 @@ export const reorder = (projectId: number, ids: number[]) =>
   call<void>("creds_reorder", { projectId, ids });
 export const setGlobal = (id: number, isGlobal: boolean) =>
   call<Credential>("creds_set_global", { id, isGlobal });
+// Копия креда в другой проект (независимая запись).
+export const copyTo = (id: number, targetProjectId: number) =>
+  call<Credential>("creds_copy", { id, targetProjectId });

@@ -1,7 +1,7 @@
 use crate::error::{AppError, AppResult};
 use crate::models::{Project, ProjectInput};
 use crate::state::AppState;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use tauri::State;
 
 fn load_tags(conn: &Connection, project_id: i64) -> AppResult<Vec<String>> {
@@ -39,7 +39,7 @@ fn set_tags(conn: &Connection, project_id: i64, tags: &[String]) -> AppResult<()
 fn row_to_project(conn: &Connection, id: i64) -> AppResult<Project> {
     let mut p = conn.query_row(
         "SELECT id, name, description, status, color, icon, path, repo_path, health_url,
-                pinned, sort_order, created_at, updated_at
+                pinned, sort_order, created_at, updated_at, group_id
          FROM projects WHERE id = ?1",
         [id],
         |r| {
@@ -55,6 +55,7 @@ fn row_to_project(conn: &Connection, id: i64) -> AppResult<Project> {
                 health_url: r.get(8)?,
                 pinned: r.get::<_, i64>(9)? != 0,
                 sort_order: r.get(10)?,
+                group_id: r.get(13)?,
                 tags: Vec::new(),
                 created_at: r.get(11)?,
                 updated_at: r.get(12)?,
@@ -198,6 +199,49 @@ pub fn project_set_sort(state: State<AppState>, id: i64, sort_order: i64) -> App
     Ok(())
 }
 
+/// Переместить проект в папку (None = в корень). Папка должна существовать.
+fn set_group_in(conn: &Connection, id: i64, group_id: Option<i64>) -> AppResult<()> {
+    if let Some(g) = group_id {
+        let exists: Option<i64> = conn
+            .query_row("SELECT id FROM project_groups WHERE id=?1", [g], |r| r.get(0))
+            .optional()?;
+        if exists.is_none() {
+            return Err(AppError { kind: crate::error::ErrorKind::NotFound, message: "Папка не найдена".into() });
+        }
+    }
+    let n = conn.execute(
+        "UPDATE projects SET group_id=?2, updated_at=datetime('now') WHERE id=?1",
+        params![id, group_id],
+    )?;
+    if n == 0 {
+        return Err(AppError { kind: crate::error::ErrorKind::NotFound, message: "Проект не найден".into() });
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn project_set_group(state: State<AppState>, id: i64, group_id: Option<i64>) -> AppResult<()> {
+    let conn = lock(&state)?;
+    set_group_in(&conn, id, group_id)
+}
+
+/// Выставить sort_order по порядку переданных id (перестановка внутри одной секции).
+fn reorder_in(conn: &Connection, ids: &[i64]) -> AppResult<()> {
+    for (i, id) in ids.iter().enumerate() {
+        conn.execute("UPDATE projects SET sort_order=?2 WHERE id=?1", params![id, i as i64])?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn projects_reorder(state: State<AppState>, ids: Vec<i64>) -> AppResult<()> {
+    let conn = lock(&state)?;
+    let tx = conn.unchecked_transaction()?;
+    reorder_in(&conn, &ids)?;
+    tx.commit()?;
+    Ok(())
+}
+
 /// Скопировать выбранное изображение в каталог данных приложения и вернуть путь к копии.
 /// Используется как иконка проекта (показывается через asset-протокол).
 #[tauri::command]
@@ -246,6 +290,34 @@ mod tests {
         let owned: Vec<String> = tags.iter().map(|s| s.to_string()).collect();
         set_tags(conn, id, &owned).unwrap();
         id
+    }
+
+    #[test]
+    fn set_group_moves_project_and_validates_group() {
+        let conn = mem();
+        let p = insert(&conn, "P", &[]);
+        conn.execute("INSERT INTO project_groups(name, sort_order) VALUES('F', 0)", []).unwrap();
+        let g = conn.last_insert_rowid();
+
+        set_group_in(&conn, p, Some(g)).unwrap();
+        assert_eq!(row_to_project(&conn, p).unwrap().group_id, Some(g));
+
+        set_group_in(&conn, p, None).unwrap();
+        assert_eq!(row_to_project(&conn, p).unwrap().group_id, None);
+
+        assert!(matches!(set_group_in(&conn, p, Some(9999)), Err(AppError { kind: crate::error::ErrorKind::NotFound, .. })));
+        assert!(matches!(set_group_in(&conn, 9999, None), Err(AppError { kind: crate::error::ErrorKind::NotFound, .. })));
+    }
+
+    #[test]
+    fn reorder_sets_sort_order_by_position() {
+        let conn = mem();
+        let a = insert(&conn, "A", &[]);
+        let b = insert(&conn, "B", &[]);
+        let c = insert(&conn, "C", &[]);
+        reorder_in(&conn, &[c, a, b]).unwrap();
+        let order = |id: i64| -> i64 { conn.query_row("SELECT sort_order FROM projects WHERE id=?1", [id], |r| r.get(0)).unwrap() };
+        assert_eq!((order(c), order(a), order(b)), (0, 1, 2));
     }
 
     #[test]

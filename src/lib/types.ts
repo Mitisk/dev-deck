@@ -14,10 +14,14 @@ export type Project = {
   healthUrl: string | null;
   pinned: boolean;
   sortOrder: number;
+  groupId: number | null; // папка в сайдбаре; null = корень
   tags: string[];
   createdAt: string;
   updatedAt: string;
 };
+
+// Папка проектов в сайдбаре (один уровень).
+export type ProjectGroup = { id: number; name: string; sortOrder: number };
 
 export type User = { name: string; handle: string; initials: string };
 
@@ -95,6 +99,7 @@ export type Credential = {
   hasSecret: boolean;
   keyPath: string | null;
   isGlobal: boolean;
+  startupCmd: string | null; // команда после входа (PuTTY, тип ssh)
 };
 
 export type Note = {

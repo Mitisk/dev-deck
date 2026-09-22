@@ -5,6 +5,7 @@ pub mod cmds;
 pub mod columns;
 pub mod creds;
 pub mod files;
+pub mod groups;
 pub mod git;
 pub mod links;
 pub mod health;
