@@ -899,3 +899,47 @@ select.tin { appearance: none; -webkit-appearance: none; cursor: pointer; font-w
 .pick-row .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--p-color); flex: none; }
 .pick-row .emoji { font-size: 15px; line-height: 1; display: inline-flex; }
 .pick-row .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- Сайдбар: split-кнопка «Новый проект | папка», папки, drag-and-drop --- */
+.sb-new-row { margin: 0 14px 8px; display: flex; gap: 2px; }
+.sb-new-row .sb-new { margin: 0; flex: 1; border-radius: var(--r-md) 0 0 var(--r-md); }
+.sb-new-folder {
+  display: grid; place-items: center; width: 38px; flex: none;
+  background: color-mix(in oklab, var(--accent) 72%, var(--surface-3));
+  color: var(--accent-ink); border: 0; border-radius: 0 var(--r-md) var(--r-md) 0;
+  transition: filter var(--t), transform var(--t);
+}
+.sb-new-folder:hover { filter: brightness(1.1); }
+.sb-new-folder:active { transform: translateY(1px); }
+
+.sb-folder {
+  display: flex; align-items: center; gap: 6px;
+  margin: 8px 0 2px; padding: 6px 8px; border-radius: var(--r-md);
+  color: var(--muted); cursor: pointer; position: relative; user-select: none;
+  transition: background var(--t), color var(--t);
+}
+.sb-folder:hover { background: var(--hover); color: var(--text-2); }
+.sb-folder .chev, .sb-folder .fico { flex: none; width: 14px; height: 14px; }
+.sb-folder .fico { color: var(--accent); }
+.sb-folder .nm { flex: 1; font-size: 12px; font-weight: 600; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-folder .count { font-size: 11px; color: var(--muted-2); }
+.sb-folder .fdel { width: 20px; height: 20px; opacity: 0; }
+.sb-folder:hover .fdel { opacity: 1; }
+.sb-folder-input {
+  flex: 1; min-width: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--text);
+  background: var(--surface-3); border: 1px solid var(--border-2); border-radius: 6px; padding: 2px 6px; outline: none;
+}
+.sb-folder-input:focus { border-color: var(--accent); }
+.sb-folder-body { margin-left: 10px; padding-left: 6px; border-left: 1px solid var(--border); }
+.sb-folder-empty {
+  padding: 7px 9px; font-size: 11.5px; color: var(--muted-2); border: 1px dashed var(--border-2);
+  border-radius: var(--r-md); text-align: center;
+}
+
+/* индикаторы drag-and-drop */
+.proj.dragging, .sb-folder.dragging { opacity: .45; }
+.proj.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.proj.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.sb-folder.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.sb-folder.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.sb-folder.drop-into, .sb-section.drop-into { background: var(--accent-soft); border-radius: var(--r-md); }
